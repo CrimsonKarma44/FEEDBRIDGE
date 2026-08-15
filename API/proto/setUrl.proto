@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package handler;
+option go_package = "/setUrl";
+
+service SetUrlHandler {
+    rpc SetUrl(SetUrlRequest) returns (SetUrlResponse);
+}
+
+message SetUrlRequest {
+    string url = 1;
+}
+
+message SetUrlResponse {
+    string message = 1;
+    repeated string feed_links = 2;
+}
