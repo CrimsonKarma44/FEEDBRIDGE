@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/mmcdole/gofeed"
-	"gorm.io/gorm"
 )
 
 type FeedItem struct {
@@ -61,19 +60,3 @@ func NewFeedItem(feed *gofeed.Item) *FeedItem {
 		PublishedAt: feed.PublishedParsed,
 	}
 }
-
-type LinkRepository struct {
-	gorm.Model
-
-	url       string `gorm:"uniqueIndex"`
-	feedLinks map[string]FeedType
-}
-
-type FeedType string
-
-const (
-	FeedTypeRSS     FeedType = "rss"
-	FeedTypeAtom    FeedType = "atom"
-	FeedTypeJSON    FeedType = "json"
-	FeedTypeUnknown FeedType = "unknown"
-)

@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"log"
+
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -11,9 +13,9 @@ type DB struct {
 	*gorm.DB
 }
 
-func (db *DB) InitDB(values *DatabaseEnv) error {
+func (db *DB) initDB(env *ENV) error {
 	var err error
-	db.DB, err = gorm.Open(postgres.Open(db.dns(values)), &gorm.Config{})
+	db.DB, err = gorm.Open(postgres.Open(db.dns(&env.Database)), &gorm.Config{})
 	if err != nil {
 
 		return fmt.Errorf("error occured")
@@ -23,16 +25,16 @@ func (db *DB) InitDB(values *DatabaseEnv) error {
 }
 
 func (db *DB) migrateDB() error {
-	err := db.DB.AutoMigrate()
+	err := db.DB.AutoMigrate(models.LinkRepository{})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func NewDB(values *DatabaseEnv) (*DB, error) {
+func NewDB(values *ENV) (*DB, error) {
 	db := &DB{}
-	err := db.InitDB(values)
+	err := db.initDB(values)
 	if err != nil {
 		return nil, err
 	}

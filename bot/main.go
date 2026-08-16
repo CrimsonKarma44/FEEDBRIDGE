@@ -41,15 +41,6 @@ func main() {
 	task := model.NewTask("task1", time.Hour * 2, nil)
 	scheduler.AddTask(task)
 	
-	// go func() {
-	// 	for {
-	// 		select {
-	// 		case <-ticker.C:
-	// 			worker.Stop()
-	// 			worker.Start()
-	// 		}
-	// 	}
-	// }()
 
 	bot, err := tele.NewBot(pref)
 	if err != nil {

@@ -2,40 +2,70 @@ package main
 
 import (
 	// "context"
-	// "fmt"
-	// "log"
+	"fmt"
+	"log"
 
-	// "net"
-	// "net/http"
+	"net"
+
+	config "github.com/CrimsonKarma44/FEEDBRIDGE/API/config"
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
+
 	// "time"
-
-	// "github.com/CrimsonKarma44/FEEDBRIDGE/API/models"
 	// rssdetector "github.com/CrimsonKarma44/rss_detector"
 	// "github.com/mmcdole/gofeed"
-	// "google.golang.org/grpc"
-	// "github.com/CrimsonKarma44/FEEDBRIDGE/API/config"
+	"os"
+
+	handler "github.com/CrimsonKarma44/FEEDBRIDGE/API/handlers"
+	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/Feed"
+	pb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/setUrl"
+	"google.golang.org/grpc"
 )
 
 func main() {
-	// env := config.LoadEnv()
-	// db, err := config.NewDB(env)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-	// fmt.Printf("connection established: %v\n", db)
+	// initializing logger
+	logger := log.New(
+		os.Stdout,                          // output destination
+		"FEEDBRIDGE: ",                     // prefix
+		log.Ldate|log.Ltime|log.Lshortfile, // flags
+	)
 
-	// lis, err := net.Listen("tcp", ":50051")
-	// if err != nil {
-	// 	log.Fatalf("failed to listen: %v", err)
-	// }
-	// s := grpc.NewServer()
-	// // pb.RegisterGreeterServer(s, &server{})
-	// // pb.RegisterChatServer(s, &server{})
-	// log.Println("Server running on :50051")
-	// if err := s.Serve(lis); err != nil {
-	// 	log.Fatalf("failed to serve: %v", err)
-	// }
+	// Loading environment variables
+	env := config.LoadENV()
+	logger.Printf("Environment variables loaded: %v\n", env)
+
+	// Loading database
+	db, err := config.NewDB(env)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	logger.Printf("DB connection established: %v\n", db.Name())
+
+	// Loading Redis
+	redis := config.NewRedisDB(env)
+	logger.Printf("Redis connection established: %v\n", redis)
+
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		logger.Fatalf("failed to listen: %v", err)
+	}
+
+	// Initializing link service
+	linkService := service.NewLinkRepoService(db.DB) // redis
+
+	// Registering gRPC services
+	srvUrl := &handler.SetUrlHandler{LinkService: linkService, RedisClient: redis}
+	srvFeed := &handler.FeedHandler{LinkService: linkService, RedisClient: redis}
+	s := grpc.NewServer()
+	pb.RegisterSetUrlHandlerServer(s, srvUrl)
+	feedpb.RegisterFeedHandlerServiceServer(s, srvFeed)
+
+	logger.Println("Server running on :50051")
+
+	if err := s.Serve(lis); err != nil {
+		logger.Fatalf("failed to serve: %v", err)
+	}
+
 	// demoURL := "https://feeds.transistor.fm/cup-o-go"
 	// demoURL := "https://feeds.transistor.fm/cup-o-go"
 	// demoURL := "https://www.youtube.com/watch?v=kD0w3YQxV6E"
@@ -86,4 +116,3 @@ func main() {
 	// }
 
 }
-
