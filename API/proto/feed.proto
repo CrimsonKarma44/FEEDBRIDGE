@@ -6,38 +6,44 @@ option go_package = "/Feed";
 import "google/protobuf/timestamp.proto";
 
 service FeedHandlerService {
-    rpc GetFeed(GetFeedRequest) returns (GetFeedResponse);
+    rpc GetFeed(GetFeedsRequest) returns (GetFeedsResponse);
 }
 
-message GetFeedRequest {
+message GetFeedsRequest {
 	string url = 1;
+	google.protobuf.Timestamp from = 2;
 }
 
-message GetFeedResponse {
-    string title       = 1;
-    string description = 2;
+message GetFeedsResponse {
+    repeated Feed feeds = 1;
 
-    message Person {
-        string name  = 1;
-        string email = 2;
-    }
-    message Image {
-    	string url   = 1;
-    	int64    width  = 2;
-    	int64    height = 3;
-    }
-    message Enclosure {
-    	string url   = 1;
-    	int64   length = 2;
-    	string type  = 3;
+    message Feed {
+        string title       = 1;
+        string description = 2;
+
+        message Person {
+            string name  = 1;
+            string email = 2;
+        }
+        message Image {
+       	string url   = 1;
+       	int64    width  = 2;
+       	int64    height = 3;
+        }
+        message Enclosure {
+       	string url   = 1;
+       	int64   length = 2;
+       	string type  = 3;
+        }
+
+        repeated Image images      = 3;
+        repeated Person authors      = 4;
+        repeated Enclosure enclosures = 5;
+
+        repeated string links         = 6;
+        repeated string categories  = 7;
+
+        google.protobuf.Timestamp published_at = 8;
     }
 
-    repeated Image images      = 3;
-    repeated Person authors      = 4;
-    repeated Enclosure enclosures = 5;
-
-    repeated string links         = 6;
-    repeated string categories  = 7;
-    
-    google.protobuf.Timestamp published_at = 8;
 }

@@ -2,15 +2,15 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/config"
-	"github.com/CrimsonKarma44/FEEDBRIDGE/API/models"
 	pb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/setUrl"
-	"github.com/CrimsonKarma44/FEEDBRIDGE/API/utility"
 	rssdetector "github.com/CrimsonKarma44/rss_detector"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
 )
@@ -32,36 +32,31 @@ func (h *SetUrlHandler) SetUrl(ctx context.Context, req *pb.SetUrlRequest) (*pb.
 
 	switch len(links) {
 	case 0:
-		return nil, err
-	case 1:
-		err := h.RedisClient.Set(ctx, req.Url, links[0].URL)
-		if err != nil {
-			return nil, err
-		}
-		return &pb.SetUrlResponse{
-			Message: "url set successfully",
-			FeedLinks: []string{links[0].URL},
-		}, nil
+		return nil, status.Error(codes.InvalidArgument, "no feed links provided")
 	default:
-		err := h.RedisClient.HSet(ctx, req.Url, func() map[string]string {
-			linker := make(map[string]models.FeedType, len(links))
-			for _, link := range links {
-				linker[link.URL] = models.FeedType(link.Type)
-			}
-			return utility.ToStringMap(linker)
-		}())
-		if err != nil {
-			return nil, err
+		// Build the map for Redis HSET
+		linker := make(map[string]string, len(links))
+		for _, link := range links {
+			linker[link.URL] = string(link.Type) // direct cast, no utility needed
 		}
+
+		// Use a prefixed key for namespace isolation
+		redisKey := fmt.Sprintf("feed:%s", req.Url)
+
+		if err := h.RedisClient.HSet(ctx, redisKey, linker); err != nil {
+			return nil, status.Errorf(codes.Internal,
+				"failed to cache feed links for %s: %v", req.Url, err)
+		}
+
+		// Build response
+		names := make([]string, len(links))
+		for i, link := range links {
+			names[i] = link.URL
+		}
+
 		return &pb.SetUrlResponse{
-			Message: "multiple links detected: " + strconv.Itoa(len(links)),
-			FeedLinks: func() []string {
-				names := make([]string, len(links))
-				for i, link := range links {
-					names[i] = link.URL
-				}
-				return names
-			}(),
+			Message:   fmt.Sprintf("URL set successfully: %d feeds", len(links)),
+			FeedLinks: names,
 		}, nil
 	}
 }

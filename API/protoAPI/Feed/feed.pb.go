@@ -22,27 +22,28 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type GetFeedRequest struct {
+type GetFeedsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	From          *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=from,proto3" json:"from,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetFeedRequest) Reset() {
-	*x = GetFeedRequest{}
+func (x *GetFeedsRequest) Reset() {
+	*x = GetFeedsRequest{}
 	mi := &file_proto_feed_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetFeedRequest) String() string {
+func (x *GetFeedsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetFeedRequest) ProtoMessage() {}
+func (*GetFeedsRequest) ProtoMessage() {}
 
-func (x *GetFeedRequest) ProtoReflect() protoreflect.Message {
+func (x *GetFeedsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_feed_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -54,46 +55,46 @@ func (x *GetFeedRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetFeedRequest.ProtoReflect.Descriptor instead.
-func (*GetFeedRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetFeedsRequest.ProtoReflect.Descriptor instead.
+func (*GetFeedsRequest) Descriptor() ([]byte, []int) {
 	return file_proto_feed_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetFeedRequest) GetUrl() string {
+func (x *GetFeedsRequest) GetUrl() string {
 	if x != nil {
 		return x.Url
 	}
 	return ""
 }
 
-type GetFeedResponse struct {
-	state         protoimpl.MessageState       `protogen:"open.v1"`
-	Title         string                       `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
-	Description   string                       `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	Images        []*GetFeedResponse_Image     `protobuf:"bytes,3,rep,name=images,proto3" json:"images,omitempty"`
-	Authors       []*GetFeedResponse_Person    `protobuf:"bytes,4,rep,name=authors,proto3" json:"authors,omitempty"`
-	Enclosures    []*GetFeedResponse_Enclosure `protobuf:"bytes,5,rep,name=enclosures,proto3" json:"enclosures,omitempty"`
-	Links         []string                     `protobuf:"bytes,6,rep,name=links,proto3" json:"links,omitempty"`
-	Categories    []string                     `protobuf:"bytes,7,rep,name=categories,proto3" json:"categories,omitempty"`
-	PublishedAt   *timestamppb.Timestamp       `protobuf:"bytes,8,opt,name=published_at,json=publishedAt,proto3" json:"published_at,omitempty"`
+func (x *GetFeedsRequest) GetFrom() *timestamppb.Timestamp {
+	if x != nil {
+		return x.From
+	}
+	return nil
+}
+
+type GetFeedsResponse struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Feeds         []*GetFeedsResponse_Feed `protobuf:"bytes,1,rep,name=feeds,proto3" json:"feeds,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetFeedResponse) Reset() {
-	*x = GetFeedResponse{}
+func (x *GetFeedsResponse) Reset() {
+	*x = GetFeedsResponse{}
 	mi := &file_proto_feed_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetFeedResponse) String() string {
+func (x *GetFeedsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetFeedResponse) ProtoMessage() {}
+func (*GetFeedsResponse) ProtoMessage() {}
 
-func (x *GetFeedResponse) ProtoReflect() protoreflect.Message {
+func (x *GetFeedsResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_feed_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -105,68 +106,119 @@ func (x *GetFeedResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetFeedResponse.ProtoReflect.Descriptor instead.
-func (*GetFeedResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetFeedsResponse.ProtoReflect.Descriptor instead.
+func (*GetFeedsResponse) Descriptor() ([]byte, []int) {
 	return file_proto_feed_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetFeedResponse) GetTitle() string {
+func (x *GetFeedsResponse) GetFeeds() []*GetFeedsResponse_Feed {
+	if x != nil {
+		return x.Feeds
+	}
+	return nil
+}
+
+type GetFeedsResponse_Feed struct {
+	state         protoimpl.MessageState             `protogen:"open.v1"`
+	Title         string                             `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	Description   string                             `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	Images        []*GetFeedsResponse_Feed_Image     `protobuf:"bytes,3,rep,name=images,proto3" json:"images,omitempty"`
+	Authors       []*GetFeedsResponse_Feed_Person    `protobuf:"bytes,4,rep,name=authors,proto3" json:"authors,omitempty"`
+	Enclosures    []*GetFeedsResponse_Feed_Enclosure `protobuf:"bytes,5,rep,name=enclosures,proto3" json:"enclosures,omitempty"`
+	Links         []string                           `protobuf:"bytes,6,rep,name=links,proto3" json:"links,omitempty"`
+	Categories    []string                           `protobuf:"bytes,7,rep,name=categories,proto3" json:"categories,omitempty"`
+	PublishedAt   *timestamppb.Timestamp             `protobuf:"bytes,8,opt,name=published_at,json=publishedAt,proto3" json:"published_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetFeedsResponse_Feed) Reset() {
+	*x = GetFeedsResponse_Feed{}
+	mi := &file_proto_feed_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetFeedsResponse_Feed) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetFeedsResponse_Feed) ProtoMessage() {}
+
+func (x *GetFeedsResponse_Feed) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_feed_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetFeedsResponse_Feed.ProtoReflect.Descriptor instead.
+func (*GetFeedsResponse_Feed) Descriptor() ([]byte, []int) {
+	return file_proto_feed_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *GetFeedsResponse_Feed) GetTitle() string {
 	if x != nil {
 		return x.Title
 	}
 	return ""
 }
 
-func (x *GetFeedResponse) GetDescription() string {
+func (x *GetFeedsResponse_Feed) GetDescription() string {
 	if x != nil {
 		return x.Description
 	}
 	return ""
 }
 
-func (x *GetFeedResponse) GetImages() []*GetFeedResponse_Image {
+func (x *GetFeedsResponse_Feed) GetImages() []*GetFeedsResponse_Feed_Image {
 	if x != nil {
 		return x.Images
 	}
 	return nil
 }
 
-func (x *GetFeedResponse) GetAuthors() []*GetFeedResponse_Person {
+func (x *GetFeedsResponse_Feed) GetAuthors() []*GetFeedsResponse_Feed_Person {
 	if x != nil {
 		return x.Authors
 	}
 	return nil
 }
 
-func (x *GetFeedResponse) GetEnclosures() []*GetFeedResponse_Enclosure {
+func (x *GetFeedsResponse_Feed) GetEnclosures() []*GetFeedsResponse_Feed_Enclosure {
 	if x != nil {
 		return x.Enclosures
 	}
 	return nil
 }
 
-func (x *GetFeedResponse) GetLinks() []string {
+func (x *GetFeedsResponse_Feed) GetLinks() []string {
 	if x != nil {
 		return x.Links
 	}
 	return nil
 }
 
-func (x *GetFeedResponse) GetCategories() []string {
+func (x *GetFeedsResponse_Feed) GetCategories() []string {
 	if x != nil {
 		return x.Categories
 	}
 	return nil
 }
 
-func (x *GetFeedResponse) GetPublishedAt() *timestamppb.Timestamp {
+func (x *GetFeedsResponse_Feed) GetPublishedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.PublishedAt
 	}
 	return nil
 }
 
-type GetFeedResponse_Person struct {
+type GetFeedsResponse_Feed_Person struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
@@ -174,21 +226,21 @@ type GetFeedResponse_Person struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetFeedResponse_Person) Reset() {
-	*x = GetFeedResponse_Person{}
-	mi := &file_proto_feed_proto_msgTypes[2]
+func (x *GetFeedsResponse_Feed_Person) Reset() {
+	*x = GetFeedsResponse_Feed_Person{}
+	mi := &file_proto_feed_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetFeedResponse_Person) String() string {
+func (x *GetFeedsResponse_Feed_Person) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetFeedResponse_Person) ProtoMessage() {}
+func (*GetFeedsResponse_Feed_Person) ProtoMessage() {}
 
-func (x *GetFeedResponse_Person) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_feed_proto_msgTypes[2]
+func (x *GetFeedsResponse_Feed_Person) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_feed_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -199,26 +251,26 @@ func (x *GetFeedResponse_Person) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetFeedResponse_Person.ProtoReflect.Descriptor instead.
-func (*GetFeedResponse_Person) Descriptor() ([]byte, []int) {
-	return file_proto_feed_proto_rawDescGZIP(), []int{1, 0}
+// Deprecated: Use GetFeedsResponse_Feed_Person.ProtoReflect.Descriptor instead.
+func (*GetFeedsResponse_Feed_Person) Descriptor() ([]byte, []int) {
+	return file_proto_feed_proto_rawDescGZIP(), []int{1, 0, 0}
 }
 
-func (x *GetFeedResponse_Person) GetName() string {
+func (x *GetFeedsResponse_Feed_Person) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *GetFeedResponse_Person) GetEmail() string {
+func (x *GetFeedsResponse_Feed_Person) GetEmail() string {
 	if x != nil {
 		return x.Email
 	}
 	return ""
 }
 
-type GetFeedResponse_Image struct {
+type GetFeedsResponse_Feed_Image struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	Width         int64                  `protobuf:"varint,2,opt,name=width,proto3" json:"width,omitempty"`
@@ -227,21 +279,21 @@ type GetFeedResponse_Image struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetFeedResponse_Image) Reset() {
-	*x = GetFeedResponse_Image{}
-	mi := &file_proto_feed_proto_msgTypes[3]
+func (x *GetFeedsResponse_Feed_Image) Reset() {
+	*x = GetFeedsResponse_Feed_Image{}
+	mi := &file_proto_feed_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetFeedResponse_Image) String() string {
+func (x *GetFeedsResponse_Feed_Image) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetFeedResponse_Image) ProtoMessage() {}
+func (*GetFeedsResponse_Feed_Image) ProtoMessage() {}
 
-func (x *GetFeedResponse_Image) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_feed_proto_msgTypes[3]
+func (x *GetFeedsResponse_Feed_Image) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_feed_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -252,33 +304,33 @@ func (x *GetFeedResponse_Image) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetFeedResponse_Image.ProtoReflect.Descriptor instead.
-func (*GetFeedResponse_Image) Descriptor() ([]byte, []int) {
-	return file_proto_feed_proto_rawDescGZIP(), []int{1, 1}
+// Deprecated: Use GetFeedsResponse_Feed_Image.ProtoReflect.Descriptor instead.
+func (*GetFeedsResponse_Feed_Image) Descriptor() ([]byte, []int) {
+	return file_proto_feed_proto_rawDescGZIP(), []int{1, 0, 1}
 }
 
-func (x *GetFeedResponse_Image) GetUrl() string {
+func (x *GetFeedsResponse_Feed_Image) GetUrl() string {
 	if x != nil {
 		return x.Url
 	}
 	return ""
 }
 
-func (x *GetFeedResponse_Image) GetWidth() int64 {
+func (x *GetFeedsResponse_Feed_Image) GetWidth() int64 {
 	if x != nil {
 		return x.Width
 	}
 	return 0
 }
 
-func (x *GetFeedResponse_Image) GetHeight() int64 {
+func (x *GetFeedsResponse_Feed_Image) GetHeight() int64 {
 	if x != nil {
 		return x.Height
 	}
 	return 0
 }
 
-type GetFeedResponse_Enclosure struct {
+type GetFeedsResponse_Feed_Enclosure struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 	Length        int64                  `protobuf:"varint,2,opt,name=length,proto3" json:"length,omitempty"`
@@ -287,21 +339,21 @@ type GetFeedResponse_Enclosure struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetFeedResponse_Enclosure) Reset() {
-	*x = GetFeedResponse_Enclosure{}
-	mi := &file_proto_feed_proto_msgTypes[4]
+func (x *GetFeedsResponse_Feed_Enclosure) Reset() {
+	*x = GetFeedsResponse_Feed_Enclosure{}
+	mi := &file_proto_feed_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetFeedResponse_Enclosure) String() string {
+func (x *GetFeedsResponse_Feed_Enclosure) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetFeedResponse_Enclosure) ProtoMessage() {}
+func (*GetFeedsResponse_Feed_Enclosure) ProtoMessage() {}
 
-func (x *GetFeedResponse_Enclosure) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_feed_proto_msgTypes[4]
+func (x *GetFeedsResponse_Feed_Enclosure) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_feed_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -312,26 +364,26 @@ func (x *GetFeedResponse_Enclosure) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetFeedResponse_Enclosure.ProtoReflect.Descriptor instead.
-func (*GetFeedResponse_Enclosure) Descriptor() ([]byte, []int) {
-	return file_proto_feed_proto_rawDescGZIP(), []int{1, 2}
+// Deprecated: Use GetFeedsResponse_Feed_Enclosure.ProtoReflect.Descriptor instead.
+func (*GetFeedsResponse_Feed_Enclosure) Descriptor() ([]byte, []int) {
+	return file_proto_feed_proto_rawDescGZIP(), []int{1, 0, 2}
 }
 
-func (x *GetFeedResponse_Enclosure) GetUrl() string {
+func (x *GetFeedsResponse_Feed_Enclosure) GetUrl() string {
 	if x != nil {
 		return x.Url
 	}
 	return ""
 }
 
-func (x *GetFeedResponse_Enclosure) GetLength() int64 {
+func (x *GetFeedsResponse_Feed_Enclosure) GetLength() int64 {
 	if x != nil {
 		return x.Length
 	}
 	return 0
 }
 
-func (x *GetFeedResponse_Enclosure) GetType() string {
+func (x *GetFeedsResponse_Feed_Enclosure) GetType() string {
 	if x != nil {
 		return x.Type
 	}
@@ -342,16 +394,19 @@ var File_proto_feed_proto protoreflect.FileDescriptor
 
 const file_proto_feed_proto_rawDesc = "" +
 	"\n" +
-	"\x10proto/feed.proto\x12\ahandler\x1a\x1fgoogle/protobuf/timestamp.proto\"\"\n" +
-	"\x0eGetFeedRequest\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\"\xbd\x04\n" +
-	"\x0fGetFeedResponse\x12\x14\n" +
+	"\x10proto/feed.proto\x12\ahandler\x1a\x1fgoogle/protobuf/timestamp.proto\"S\n" +
+	"\x0fGetFeedsRequest\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12.\n" +
+	"\x04from\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04from\"\x8f\x05\n" +
+	"\x10GetFeedsResponse\x124\n" +
+	"\x05feeds\x18\x01 \x03(\v2\x1e.handler.GetFeedsResponse.FeedR\x05feeds\x1a\xc4\x04\n" +
+	"\x04Feed\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\x126\n" +
-	"\x06images\x18\x03 \x03(\v2\x1e.handler.GetFeedResponse.ImageR\x06images\x129\n" +
-	"\aauthors\x18\x04 \x03(\v2\x1f.handler.GetFeedResponse.PersonR\aauthors\x12B\n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12<\n" +
+	"\x06images\x18\x03 \x03(\v2$.handler.GetFeedsResponse.Feed.ImageR\x06images\x12?\n" +
+	"\aauthors\x18\x04 \x03(\v2%.handler.GetFeedsResponse.Feed.PersonR\aauthors\x12H\n" +
 	"\n" +
-	"enclosures\x18\x05 \x03(\v2\".handler.GetFeedResponse.EnclosureR\n" +
+	"enclosures\x18\x05 \x03(\v2(.handler.GetFeedsResponse.Feed.EnclosureR\n" +
 	"enclosures\x12\x14\n" +
 	"\x05links\x18\x06 \x03(\tR\x05links\x12\x1e\n" +
 	"\n" +
@@ -368,9 +423,9 @@ const file_proto_feed_proto_rawDesc = "" +
 	"\tEnclosure\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x16\n" +
 	"\x06length\x18\x02 \x01(\x03R\x06length\x12\x12\n" +
-	"\x04type\x18\x03 \x01(\tR\x04type2R\n" +
-	"\x12FeedHandlerService\x12<\n" +
-	"\aGetFeed\x12\x17.handler.GetFeedRequest\x1a\x18.handler.GetFeedResponseB\aZ\x05/Feedb\x06proto3"
+	"\x04type\x18\x03 \x01(\tR\x04type2T\n" +
+	"\x12FeedHandlerService\x12>\n" +
+	"\aGetFeed\x12\x18.handler.GetFeedsRequest\x1a\x19.handler.GetFeedsResponseB\aZ\x05/Feedb\x06proto3"
 
 var (
 	file_proto_feed_proto_rawDescOnce sync.Once
@@ -384,27 +439,30 @@ func file_proto_feed_proto_rawDescGZIP() []byte {
 	return file_proto_feed_proto_rawDescData
 }
 
-var file_proto_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_proto_feed_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_proto_feed_proto_goTypes = []any{
-	(*GetFeedRequest)(nil),            // 0: handler.GetFeedRequest
-	(*GetFeedResponse)(nil),           // 1: handler.GetFeedResponse
-	(*GetFeedResponse_Person)(nil),    // 2: handler.GetFeedResponse.Person
-	(*GetFeedResponse_Image)(nil),     // 3: handler.GetFeedResponse.Image
-	(*GetFeedResponse_Enclosure)(nil), // 4: handler.GetFeedResponse.Enclosure
-	(*timestamppb.Timestamp)(nil),     // 5: google.protobuf.Timestamp
+	(*GetFeedsRequest)(nil),                 // 0: handler.GetFeedsRequest
+	(*GetFeedsResponse)(nil),                // 1: handler.GetFeedsResponse
+	(*GetFeedsResponse_Feed)(nil),           // 2: handler.GetFeedsResponse.Feed
+	(*GetFeedsResponse_Feed_Person)(nil),    // 3: handler.GetFeedsResponse.Feed.Person
+	(*GetFeedsResponse_Feed_Image)(nil),     // 4: handler.GetFeedsResponse.Feed.Image
+	(*GetFeedsResponse_Feed_Enclosure)(nil), // 5: handler.GetFeedsResponse.Feed.Enclosure
+	(*timestamppb.Timestamp)(nil),           // 6: google.protobuf.Timestamp
 }
 var file_proto_feed_proto_depIdxs = []int32{
-	3, // 0: handler.GetFeedResponse.images:type_name -> handler.GetFeedResponse.Image
-	2, // 1: handler.GetFeedResponse.authors:type_name -> handler.GetFeedResponse.Person
-	4, // 2: handler.GetFeedResponse.enclosures:type_name -> handler.GetFeedResponse.Enclosure
-	5, // 3: handler.GetFeedResponse.published_at:type_name -> google.protobuf.Timestamp
-	0, // 4: handler.FeedHandlerService.GetFeed:input_type -> handler.GetFeedRequest
-	1, // 5: handler.FeedHandlerService.GetFeed:output_type -> handler.GetFeedResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	6, // 0: handler.GetFeedsRequest.from:type_name -> google.protobuf.Timestamp
+	2, // 1: handler.GetFeedsResponse.feeds:type_name -> handler.GetFeedsResponse.Feed
+	4, // 2: handler.GetFeedsResponse.Feed.images:type_name -> handler.GetFeedsResponse.Feed.Image
+	3, // 3: handler.GetFeedsResponse.Feed.authors:type_name -> handler.GetFeedsResponse.Feed.Person
+	5, // 4: handler.GetFeedsResponse.Feed.enclosures:type_name -> handler.GetFeedsResponse.Feed.Enclosure
+	6, // 5: handler.GetFeedsResponse.Feed.published_at:type_name -> google.protobuf.Timestamp
+	0, // 6: handler.FeedHandlerService.GetFeed:input_type -> handler.GetFeedsRequest
+	1, // 7: handler.FeedHandlerService.GetFeed:output_type -> handler.GetFeedsResponse
+	7, // [7:8] is the sub-list for method output_type
+	6, // [6:7] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_proto_feed_proto_init() }
@@ -418,7 +476,7 @@ func file_proto_feed_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_feed_proto_rawDesc), len(file_proto_feed_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
