@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/Feed"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/grpcclient"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/store"
 	tele "gopkg.in/telebot.v4"
@@ -68,43 +69,30 @@ func (h *FeedHandler) AddFeed(c tele.Context) error {
 		return c.Send(fmt.Sprintf("Detected %d feed(s), but saving the subscription failed.", count))
 	}
 
-	shown, perr := h.sendLatestPreview(c, sub)
-	if perr != nil {
-		log.Printf("latest-items preview failed for %s: %v", target, perr)
-	}
+	top, ferr := h.fetchLatest(target)
 
 	confirm := fmt.Sprintf("Subscribed to %s\n%d feed(s) detected.\nChecked every %s.", esc(target), count, store.DefaultInterval)
 	if target != raw {
 		confirm += fmt.Sprintf("\n<i>Normalized to %s</i>", esc(target))
 	}
 	switch {
-	case perr != nil:
+	case ferr != nil:
+		log.Printf("latest-items preview failed for %s: %v", target, ferr)
 		confirm += "\nCouldn't load the latest items just now - they will arrive with the next check."
-	case shown > 0:
-		confirm += fmt.Sprintf("\nShowing the latest %d item(s) above.", shown)
+	case len(top) > 0:
+		confirm += fmt.Sprintf("\nShowing the latest %d item(s) below.", len(top))
 	default:
 		confirm += "\nNo items published yet."
 	}
-	return c.Send(confirm)
-}
-
-// sendLatestPreview delivers the most recent items right after subscribing and
-// advances the cursor past them so scheduled checks never resend them.
-func (h *FeedHandler) sendLatestPreview(c tele.Context, sub *store.Subscription) (int, error) {
-	items, err := h.API.GetFeed(context.Background(), sub.URL, time.Time{})
-	if err != nil {
-		return 0, err
+	if sendErr := c.Send(confirm); sendErr != nil {
+		return sendErr
 	}
 
-	top := items
-	if len(top) > previewCount {
-		top = top[:previewCount]
-	}
 	if len(top) == 0 {
-		return 0, nil
+		return nil
 	}
 
-	n := SendItems(c.Bot(), sub.ChatID, top, sendGap)
+	SendItems(c.Bot(), sub.ChatID, top, sendGap)
 
 	if ts := publishedAt(top[0]); !ts.IsZero() {
 		if uerr := h.Store.UpdateCursor(sub.ID, ts); uerr != nil {
@@ -113,7 +101,19 @@ func (h *FeedHandler) sendLatestPreview(c tele.Context, sub *store.Subscription)
 			sub.LastSeenPublished = ts
 		}
 	}
-	return n, nil
+	return nil
+}
+
+// fetchLatest returns the most recent items for a URL (newest first).
+func (h *FeedHandler) fetchLatest(url string) ([]*feedpb.GetFeedsResponse_Feed, error) {
+	items, err := h.API.GetFeed(context.Background(), url, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	if len(items) > previewCount {
+		items = items[:previewCount]
+	}
+	return items, nil
 }
 
 func (h *FeedHandler) ListFeed(c tele.Context) error {

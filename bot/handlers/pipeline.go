@@ -19,13 +19,14 @@ type Sender interface {
 }
 
 // SendItems delivers items as individual HTML messages with throttling.
-// Returns how many items were successfully delivered; stops at first failure.
+// Link previews are left enabled so Telegram renders its native card for each
+// item's article link. Returns how many items were successfully delivered;
+// stops at first failure.
 func SendItems(bot Sender, chatID int64, items []*feedpb.GetFeedsResponse_Feed, gap time.Duration) int {
 	delivered := 0
 	for _, item := range items {
 		_, err := bot.Send(tele.ChatID(chatID), FormatItem(item), &tele.SendOptions{
-			ParseMode:             tele.ModeHTML,
-			DisableWebPagePreview: true,
+			ParseMode: tele.ModeHTML,
 		})
 		if err != nil {
 			log.Printf("deliver to chat %d failed: %v", chatID, err)
