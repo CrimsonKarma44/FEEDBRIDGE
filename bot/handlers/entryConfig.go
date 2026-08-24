@@ -48,11 +48,8 @@ func (con *EntryConfig) Configure(c tele.Context) error {
 }
 
 func (con *EntryConfig) ConfigBtnChat(c tele.Context) error {
-	// Acknowledge the tap so the loading spinner stops on the user's client
-	c.Respond(&tele.CallbackResponse{Text: "Thanks for liking!"})
-
-	// Optionally edit or update the existing message
-	return c.Edit("You liked this prompt!")
+	c.Respond()
+	return c.Edit("Feeds will be delivered right here in this chat. Add your first one with /addfeed <url>.")
 }
 
 func (con *EntryConfig) ConfigBtnGroup(c tele.Context) error {
@@ -63,4 +60,16 @@ func (con *EntryConfig) ConfigBtnGroup(c tele.Context) error {
 	return c.Edit("Click the button below to add me to your group or community.", &tele.SendOptions{
 		ReplyMarkup: menu,
 	})
+}
+
+func (con *EntryConfig) ConfigBtnCommunity(c tele.Context) error {
+	c.Respond()
+	menu := &tele.ReplyMarkup{}
+	addBtn := menu.URL("Add me to a Community", "https://t.me/feed_bridge_bot?startgroup=true")
+	menu.Inline(menu.Row(addBtn))
+	return c.Edit(
+		"Communities are supergroups in Telegram, so the same flow applies.\n"+
+			"Add the bot, then use /addfeed inside the community.",
+		&tele.SendOptions{ReplyMarkup: menu},
+	)
 }

@@ -1,0 +1,40 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# Project binaries
+feedbridge
+bot/feedbridge-bot
+bin/
+dist/
+
+# Coverage / profiling
+coverage.txt
+profile.cov
+*.prof
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*~
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
