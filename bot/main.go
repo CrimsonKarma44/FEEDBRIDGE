@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -16,6 +17,26 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+// safe wraps handlers with panic recovery. Telebot runs each handler in a
+// bare goroutine, so an unrecovered panic would kill the whole bot silently.
+func safe(h tele.HandlerFunc) tele.HandlerFunc {
+	return func(c tele.Context) error {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("panic recovered in handler: %v\n%s", r, debug.Stack())
+				if c.Callback() != nil {
+					c.Respond(&tele.CallbackResponse{Text: "Something went wrong"})
+					return
+				}
+				if c.Chat() != nil {
+					_ = c.Send("Something went wrong handling that command.")
+				}
+			}
+		}()
+		return h(c)
+	}
+}
 
 func main() {
 	env, err := model.UpdateEnv()
@@ -72,23 +93,27 @@ func main() {
 	envConf := &handlers.EntryConfig{}
 	feedHandler := &handlers.FeedHandler{Store: st, API: api}
 
-	bot.Handle("/start", envConf.Start)
-	bot.Handle("/configure", envConf.Configure)
-	bot.Handle("\fbtn_chat", envConf.ConfigBtnChat)
-	bot.Handle("\fbtn_group", envConf.ConfigBtnGroup)
-	bot.Handle("\fbtn_community", envConf.ConfigBtnCommunity)
+	handle := func(endpoint string, h tele.HandlerFunc) {
+		bot.Handle(endpoint, safe(h))
+	}
 
-	bot.Handle("/addfeed", feedHandler.AddFeed)
-	bot.Handle("/listfeed", feedHandler.ListFeed)
-	bot.Handle("/removefeed", feedHandler.RemoveFeed)
-	bot.Handle("/disablefeed", feedHandler.DisableFeed)
-	bot.Handle("/enablefeed", feedHandler.EnableFeed)
-	bot.Handle("/interval", feedHandler.SetInterval)
+	handle("/start", envConf.Start)
+	handle("/configure", envConf.Configure)
+	handle("\fbtn_chat", envConf.ConfigBtnChat)
+	handle("\fbtn_group", envConf.ConfigBtnGroup)
+	handle("\fbtn_community", envConf.ConfigBtnCommunity)
 
-	bot.Handle("\ffd_view", feedHandler.OnViewBtn)
-	bot.Handle("\ffd_on", feedHandler.OnEnableBtn)
-	bot.Handle("\ffd_off", feedHandler.OnDisableBtn)
-	bot.Handle("\ffd_rm", feedHandler.OnRemoveBtn)
+	handle("/addfeed", feedHandler.AddFeed)
+	handle("/listfeed", feedHandler.ListFeed)
+	handle("/removefeed", feedHandler.RemoveFeed)
+	handle("/disablefeed", feedHandler.DisableFeed)
+	handle("/enablefeed", feedHandler.EnableFeed)
+	handle("/interval", feedHandler.SetInterval)
+
+	handle("\ffd_view", feedHandler.OnViewBtn)
+	handle("\ffd_on", feedHandler.OnEnableBtn)
+	handle("\ffd_off", feedHandler.OnDisableBtn)
+	handle("\ffd_rm", feedHandler.OnRemoveBtn)
 
 	go func() {
 		log.Println("Bot started")

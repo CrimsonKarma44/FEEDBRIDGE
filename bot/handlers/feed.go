@@ -57,30 +57,37 @@ func (h *FeedHandler) AddFeed(c tele.Context) error {
 		return c.Send(BadURLHelp(err))
 	}
 
+	exists, err := h.Store.Exists(c.Chat().ID, target)
+	if err != nil {
+		log.Println("exists check failed:", err)
+	} else if exists {
+		return c.Send("You're already subscribed to this feed.\nManage it with /listfeed.")
+	}
+
 	count, err := h.API.SetUrl(context.Background(), target)
 	if err != nil {
 		log.Printf("SetUrl(%s) failed: %v", target, err)
 		return c.Send("Could not add that URL. " + grpcclient.FriendlyError(err))
 	}
 
-	sub, err := h.Store.Add(c.Chat().ID, target, store.DefaultInterval)
+	sub, created, err := h.Store.Add(c.Chat().ID, target, store.DefaultInterval)
 	if err != nil {
 		log.Println("subscribe failed:", err)
 		return c.Send(fmt.Sprintf("Detected %d feed(s), but saving the subscription failed.", count))
 	}
+	if !created {
+		return c.Send("You're already subscribed to this feed.\nManage it with /listfeed.")
+	}
 
 	top, ferr := h.fetchLatest(target)
 
-	confirm := fmt.Sprintf("Subscribed to %s\n%d feed(s) detected.\nChecked every %s.", esc(target), count, store.DefaultInterval)
-	if target != raw {
-		confirm += fmt.Sprintf("\n<i>Normalized to %s</i>", esc(target))
-	}
+	confirm := fmt.Sprintf("Added successfully - %d feed(s) detected.", count)
 	switch {
 	case ferr != nil:
 		log.Printf("latest-items preview failed for %s: %v", target, ferr)
 		confirm += "\nCouldn't load the latest items just now - they will arrive with the next check."
 	case len(top) > 0:
-		confirm += fmt.Sprintf("\nShowing the latest %d item(s) below.", len(top))
+		confirm += fmt.Sprintf("\nShowing the latest %d below.", len(top))
 	default:
 		confirm += "\nNo items published yet."
 	}

@@ -36,7 +36,8 @@ func New(db *gorm.DB) (*Store, error) {
 
 // Add ensures the chat is subscribed to the URL. Re-adding enables an existing
 // subscription. The cursor starts at now so only future items are delivered.
-func (s *Store) Add(chatID int64, url string, interval time.Duration) (*Subscription, error) {
+// The bool reports whether a new subscription was created.
+func (s *Store) Add(chatID int64, url string, interval time.Duration) (*Subscription, bool, error) {
 	now := time.Now()
 	var sub Subscription
 	err := s.db.Where("chat_id = ? AND url = ?", chatID, url).First(&sub).Error
@@ -44,12 +45,12 @@ func (s *Store) Add(chatID int64, url string, interval time.Duration) (*Subscrip
 		sub.Enabled = true
 		sub.LastSeenPublished = now
 		if serr := s.db.Save(&sub).Error; serr != nil {
-			return nil, serr
+			return nil, false, serr
 		}
-		return &sub, nil
+		return &sub, false, nil
 	}
 	if err != gorm.ErrRecordNotFound {
-		return nil, err
+		return nil, false, err
 	}
 	sub = Subscription{
 		ChatID:            chatID,
@@ -60,9 +61,18 @@ func (s *Store) Add(chatID int64, url string, interval time.Duration) (*Subscrip
 		LastSeenPublished: now,
 	}
 	if cerr := s.db.Create(&sub).Error; cerr != nil {
-		return nil, cerr
+		return nil, false, cerr
 	}
-	return &sub, nil
+	return &sub, true, nil
+}
+
+// Exists reports whether the chat already subscribes to the URL.
+func (s *Store) Exists(chatID int64, url string) (bool, error) {
+	var n int64
+	err := s.db.Model(&Subscription{}).
+		Where("chat_id = ? AND url = ?", chatID, url).
+		Count(&n).Error
+	return n > 0, err
 }
 
 func (s *Store) ListByChat(chatID int64) ([]Subscription, error) {
