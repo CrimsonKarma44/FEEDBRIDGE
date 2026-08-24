@@ -36,17 +36,20 @@ func New(db *gorm.DB) (*Store, error) {
 
 // Add ensures the chat is subscribed to the URL. Re-adding enables an existing
 // subscription. The cursor starts at now so only future items are delivered.
-func (s *Store) Add(chatID int64, url string, interval time.Duration) error {
+func (s *Store) Add(chatID int64, url string, interval time.Duration) (*Subscription, error) {
 	now := time.Now()
 	var sub Subscription
 	err := s.db.Where("chat_id = ? AND url = ?", chatID, url).First(&sub).Error
 	if err == nil {
 		sub.Enabled = true
 		sub.LastSeenPublished = now
-		return s.db.Save(&sub).Error
+		if serr := s.db.Save(&sub).Error; serr != nil {
+			return nil, serr
+		}
+		return &sub, nil
 	}
 	if err != gorm.ErrRecordNotFound {
-		return err
+		return nil, err
 	}
 	sub = Subscription{
 		ChatID:            chatID,
@@ -56,7 +59,10 @@ func (s *Store) Add(chatID int64, url string, interval time.Duration) error {
 		LastCheckedAt:     now,
 		LastSeenPublished: now,
 	}
-	return s.db.Create(&sub).Error
+	if cerr := s.db.Create(&sub).Error; cerr != nil {
+		return nil, cerr
+	}
+	return &sub, nil
 }
 
 func (s *Store) ListByChat(chatID int64) ([]Subscription, error) {

@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"fmt"
+	"html"
+	"strings"
 	"time"
 
 	tele "gopkg.in/telebot.v4"
@@ -8,18 +11,52 @@ import (
 
 type EntryConfig struct{}
 
+const privateStartTpl = `<b>Welcome to FEEDBRIDGE, %s!</b>
+
+Get new posts from any website delivered straight into this chat - RSS, Atom and more, checked automatically.
+
+<b>Quick start</b>
+<code>/addfeed https://example.com</code>
+
+<b>Commands</b>
+/addfeed &lt;url&gt; - subscribe this chat
+/listfeed - manage your subscriptions
+/interval 30m - delivery frequency
+/disablefeed &lt;url&gt; / /enablefeed &lt;url&gt;
+/removefeed &lt;url&gt;
+
+<i>New subscriptions show their latest 3 items right away.</i>`
+
+const groupStartTpl = `<b>Hi %s! I deliver feed updates into this chat.</b>
+
+Anyone can read along, admins manage:
+
+/addfeed &lt;url&gt; - add a feed for everyone here
+/listfeed - see what this group follows
+/interval 30m - adjust frequency
+
+<i>Add a feed to try it out.</i>`
+
 func (con *EntryConfig) Start(c tele.Context) error {
-	switch c.Chat().Type {
-	case tele.ChatGroup:
-		return c.Send("Hello, " + c.Chat().Title + "!")
-	case tele.ChatSuperGroup:
-		return c.Send("Hello from supergroup chat")
+	chat := c.Chat()
+	if chat == nil {
+		return nil
+	}
+
+	switch chat.Type {
+	case tele.ChatGroup, tele.ChatSuperGroup:
+		return c.Send(fmt.Sprintf(groupStartTpl, esc(chat.Title)))
+	case tele.ChatChannel:
+		return c.Send("Feed updates are delivered in groups and private chats. Add me there and use /start.")
 	default:
-		fullname := c.Sender().FirstName
-		if c.Sender().LastName != "" {
-			fullname += " " + c.Sender().LastName
+		name := ""
+		if sender := c.Sender(); sender != nil {
+			name = html.EscapeString(strings.TrimSpace(sender.FirstName + " " + sender.LastName))
 		}
-		return c.Send("Hello, " + fullname + "!")
+		if name == "" {
+			name = "friend"
+		}
+		return c.Send(fmt.Sprintf(privateStartTpl, name))
 	}
 }
 

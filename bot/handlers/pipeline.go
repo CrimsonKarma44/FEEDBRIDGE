@@ -13,6 +13,39 @@ import (
 	tele "gopkg.in/telebot.v4"
 )
 
+// Sender is the slice of telebot both *tele.Bot and Context.Bot() satisfy.
+type Sender interface {
+	Send(to tele.Recipient, what any, opts ...any) (*tele.Message, error)
+}
+
+// SendItems delivers items as individual HTML messages with throttling.
+// Returns how many items were successfully delivered; stops at first failure.
+func SendItems(bot Sender, chatID int64, items []*feedpb.GetFeedsResponse_Feed, gap time.Duration) int {
+	delivered := 0
+	for _, item := range items {
+		_, err := bot.Send(tele.ChatID(chatID), FormatItem(item), &tele.SendOptions{
+			ParseMode:             tele.ModeHTML,
+			DisableWebPagePreview: true,
+		})
+		if err != nil {
+			log.Printf("deliver to chat %d failed: %v", chatID, err)
+			break
+		}
+		delivered++
+		time.Sleep(gap)
+	}
+	return delivered
+}
+
+// SendDigest delivers many new items collapsed into one message.
+func SendDigest(bot Sender, chatID int64, items []*feedpb.GetFeedsResponse_Feed) error {
+	_, err := bot.Send(tele.ChatID(chatID), FormatDigest(items), &tele.SendOptions{
+		ParseMode:             tele.ModeHTML,
+		DisableWebPagePreview: true,
+	})
+	return err
+}
+
 // FetchTask builds the worker job for one subscription: fetch items newer than
 // the cursor, deliver them, then advance the cursor. Undated items are skipped
 // so they can never repeat forever.
@@ -41,27 +74,15 @@ func FetchTask(bot *tele.Bot, api *grpcclient.Client, st *store.Store, sub *stor
 				return nil
 			}
 
-			send := func(text string) error {
-				_, serr := bot.Send(tele.ChatID(sub.ChatID), text, &tele.SendOptions{
-					ParseMode:             tele.ModeHTML,
-					DisableWebPagePreview: true,
-				})
-				time.Sleep(sendGap)
-				return serr
-			}
-
 			delivered := 0
 			if len(fresh) > digestThreshold {
-				if err := send(FormatDigest(fresh)); err == nil {
+				if err := SendDigest(bot, sub.ChatID, fresh); err == nil {
 					delivered = len(fresh)
+				} else {
+					log.Printf("digest to chat %d failed: %v", sub.ChatID, err)
 				}
 			} else {
-				for _, item := range fresh {
-					if err := send(FormatItem(item)); err != nil {
-						break
-					}
-					delivered++
-				}
+				delivered = SendItems(bot, sub.ChatID, fresh, sendGap)
 			}
 
 			if delivered == 0 {
