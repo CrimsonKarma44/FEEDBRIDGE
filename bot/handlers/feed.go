@@ -64,24 +64,36 @@ func (h *FeedHandler) AddFeed(c tele.Context) error {
 		return c.Send("You're already subscribed to this feed.\nManage it with /listfeed.")
 	}
 
-	count, err := h.API.SetUrl(context.Background(), target)
+	links, err := h.API.SetUrl(context.Background(), target)
 	if err != nil {
 		log.Printf("SetUrl(%s) failed: %v", target, err)
 		return c.Send("Could not add that URL. " + grpcclient.FriendlyError(err))
 	}
+	if len(links) == 0 {
+		return c.Send("No feeds were found for that URL.")
+	}
 
-	sub, created, err := h.Store.Add(c.Chat().ID, target, store.DefaultInterval)
+	feedURL := links[0]
+
+	if exists, err := h.Store.Exists(c.Chat().ID, feedURL); err != nil {
+		log.Println("exists check failed:", err)
+	} else if exists {
+		log.Printf("input %s resolves to already-subscribed feed %s", target, feedURL)
+		return c.Send("You're already subscribed to this feed.\nManage it with /listfeed.")
+	}
+
+	sub, created, err := h.Store.Add(c.Chat().ID, feedURL, store.DefaultInterval)
 	if err != nil {
 		log.Println("subscribe failed:", err)
-		return c.Send(fmt.Sprintf("Detected %d feed(s), but saving the subscription failed.", count))
+		return c.Send(fmt.Sprintf("Detected %d feed(s), but saving the subscription failed.", len(links)))
 	}
 	if !created {
 		return c.Send("You're already subscribed to this feed.\nManage it with /listfeed.")
 	}
 
-	top, ferr := h.fetchLatest(target)
+	top, ferr := h.fetchLatest(feedURL)
 
-	confirm := fmt.Sprintf("Added successfully - %d feed(s) detected.", count)
+	confirm := fmt.Sprintf("Added successfully - %d feed(s) detected.", len(links))
 	switch {
 	case ferr != nil:
 		log.Printf("latest-items preview failed for %s: %v", target, ferr)

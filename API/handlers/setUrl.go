@@ -35,6 +35,11 @@ func (h *SetUrlHandler) SetUrl(ctx context.Context, req *pb.SetUrlRequest) (*pb.
 	defer cancel()
 
 	v, err, _ := flightGroup.Do(detectFlightKey+req.GetUrl(), func() (any, error) {
+		// Cache-first: known inputs resolve without touching the upstream site.
+		if cached, cerr := h.RedisClient.HGetAll(ctx, req.GetUrl()); cerr == nil && len(cached) > 0 {
+			log.Printf("cache hit for %s, skipping detection", req.GetUrl())
+			return linksFromCached(utility.ToFeedTypeMap(cached)), nil
+		}
 		return resolveFeeds(ctx, h.YouTube, req.GetUrl())
 	})
 	var links []rssdetector.FeedLink

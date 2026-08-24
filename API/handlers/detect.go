@@ -6,11 +6,21 @@ import (
 	"log"
 	"net/url"
 
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/models"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/youtube"
 	rssdetector "github.com/CrimsonKarma44/rss_detector"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// linksFromCached converts a cached url->type map back into feed links.
+func linksFromCached(m map[string]models.FeedType) []rssdetector.FeedLink {
+	out := make([]rssdetector.FeedLink, 0, len(m))
+	for u, t := range m {
+		out = append(out, rssdetector.FeedLink{URL: u, Type: rssdetector.FeedType(t)})
+	}
+	return out
+}
 
 // resolveFeeds discovers feed links for a URL. YouTube URLs are handled by the
 // Innertube-based resolver (no HTML scraping, no captchas); everything else

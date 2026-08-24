@@ -37,16 +37,17 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-// SetUrl registers the URL with the API and returns the number of feeds detected.
-func (c *Client) SetUrl(ctx context.Context, url string) (int, error) {
+// SetUrl registers the URL with the API and returns the detected feed links,
+// best-ranked first.
+func (c *Client) SetUrl(ctx context.Context, url string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 
 	resp, err := c.setURL.SetUrl(ctx, &urlpb.SetUrlRequest{Url: url})
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return len(resp.GetFeedLinks()), nil
+	return resp.GetFeedLinks(), nil
 }
 
 // GetFeed returns feed items for url published strictly after from.
