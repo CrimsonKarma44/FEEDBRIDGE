@@ -88,3 +88,61 @@ In groups only **admins** can manage feeds.
 - `bot/go.mod` uses local `replace` directives pointing at `../API` and the local `rss_detector` checkout — adjust paths if your layout differs.
 - `API/youtube/` resolves any YouTube video/handle/channel URL to its Atom feed (Innertube first, Data API v3 when a key is set).
 - Cache layers: repeat `GetFeed` calls within the item TTL are served entirely from Redis.
+- Subscriptions are keyed on the **resolved feed URL** (not the input URL): adding any page of a site whose feed you already follow answers "already subscribed" instead of creating a duplicate.
+
+## Deployment (Oracle Cloud Always Free — single VM, $0)
+
+The whole stack runs on one always-free ARM VM: both binaries as systemd services, native Postgres + Redis. Nothing is exposed publicly — the bot polls Telegram outbound and talks to the API over loopback.
+
+### 1. Account & VM
+1. Sign up at oracle.com/cloud/free (card needed for identity only). Pick a **low-demand region** for ARM capacity — it's permanent.
+2. Compute → Create Instance: Ubuntu 24.04 **aarch64**, shape `Ampere A1 Flex` (2 OCPU / 12 GB), your SSH key. Security list: port 22 only.
+
+### 2. Bootstrap
+```bash
+scp -r deploy ubuntu@<IP>:~            # or git clone the repo on the VM
+ssh ubuntu@<IP>
+cd ~/deploy && sudo ./setup-server.sh  # packages, DB+user creation prompts, redis password, ufw
+```
+Copy envs into place:
+```bash
+sudo cp ~/deploy/env/api.env.example /etc/feedbridge/api.env
+sudo cp ~/deploy/env/bot.env.example /etc/feedbridge/bot.env
+sudo chmod 600 /etc/feedbridge/*.env && sudoedit each   # fill secrets; REDIS_PASSWORD printed by setup
+```
+
+### 3. Ship binaries
+```bash
+# from your machine, repo root:
+API_HOST=... bot deploy targets:
+make -C API deploy HOST=ubuntu@<IP>
+make -C bot deploy HOST=ubuntu@<IP>
+```
+
+### 4. Services + data migration
+```bash
+sudo cp ~/deploy/feedbridge-*.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now feedbridge-api feedbridge-bot
+journalctl -u feedbridge-api -f          # verify
+
+# optional: migrate existing local data (subscriptions + detection cache)
+pg_dump -U deus -h localhost -d feedbridge -t subscriptions -t link_repositories | \
+  ssh ubuntu@<IP> 'sudo -u postgres psql -d feedbridge'
+```
+
+### 5. Ops
+- Backups: install `deploy/backup-db.sh` as root cron (`0 4 * * *`), keeps 7 dumps.
+- Redeploys after changes: same `make deploy` one-liners (Restart=always units).
+- Gotchas: region is permanent; ARM capacity may require retries; consider upgrading to Pay-As-You-Go (still $0 within limits) to remove idle-reclaim risk; never open 50051/5432/6379 publicly.
+
+## Docker (optional)
+
+Both modules compile to fully static binaries, so containerization stays optional:
+
+```bash
+docker build -f API/Dockerfile . && docker build -f bot/Dockerfile .
+docker compose -f docker-compose.example.yml up -d    # full parity stack incl. pg+redis
+```
+
+Caveat: both modules use local `replace` directives pointing at the sibling `rss_detector` checkout, which lives outside this repo. Container builds therefore need that source inside the build context (copy it in, or vendor/publish `rss_detector` — a good future cleanup). The systemd path has no such requirement.
+

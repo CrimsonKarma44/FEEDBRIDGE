@@ -1,0 +1,70 @@
+# OPTIONAL full-stack parity stack (dev/staging). Production on OCI uses
+# systemd + native Postgres/Redis per deploy/README section instead.
+#
+# Build contexts expect the rss_detector source inside the repo root (see
+# Dockerfile comments) — copy it in before `docker compose build`:
+#   cp -r ../rss_detector ./rss_detector
+#
+#   docker compose -f docker-compose.example.yml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: deus
+      POSTGRES_PASSWORD: change-me-strong
+      POSTGRES_DB: feedbridge
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deus -d feedbridge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--requirepass", "change-me-strong"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "change-me-strong", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: API/Dockerfile
+    environment:
+      DB_HOST: postgres
+      DB_USER: deus
+      DB_PASSWORD: change-me-strong
+      DB_NAME: feedbridge
+      DB_PORT: "5432"
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: change-me-strong
+      REDIS_DB: "0"
+      REDIS_PROTOCOL: "3"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set in env}
+      API_ADDR: api:50051
+      DB_HOST: postgres
+      DB_USER: deus
+      DB_PASSWORD: change-me-strong
+      DB_NAME: feedbridge
+      DB_PORT: "5432"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

@@ -1,0 +1,27 @@
+[Unit]
+Description=FEEDBRIDGE Telegram bot
+Wants=network-online.target
+After=network-online.target feedbridge-api.service
+
+[Service]
+Type=simple
+User=feedbridge
+Group=feedbridge
+WorkingDirectory=/opt/feedbridge
+EnvironmentFile=/etc/feedbridge/bot.env
+ExecStart=/opt/feedbridge/feedbridge-bot
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+# Hardening: the bot only makes outbound connections (Telegram + loopback API).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

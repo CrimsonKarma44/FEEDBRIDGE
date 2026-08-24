@@ -1,0 +1,27 @@
+[Unit]
+Description=FEEDBRIDGE gRPC API server
+Wants=network-online.target
+After=network-online.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=feedbridge
+Group=feedbridge
+WorkingDirectory=/opt/feedbridge
+EnvironmentFile=/etc/feedbridge/api.env
+ExecStart=/opt/feedbridge/feedbridge
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+# Hardening: API listens on loopback only and writes nothing to disk.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
