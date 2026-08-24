@@ -1,24 +1,24 @@
 package main
 
 import (
-	// "context"
+	"context"
 	"fmt"
 	"log"
-
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	config "github.com/CrimsonKarma44/FEEDBRIDGE/API/config"
-	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
-
-	// "time"
-	// rssdetector "github.com/CrimsonKarma44/rss_detector"
-	// "github.com/mmcdole/gofeed"
-	"os"
-
 	handler "github.com/CrimsonKarma44/FEEDBRIDGE/API/handlers"
 	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/Feed"
 	pb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/setUrl"
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -56,15 +56,52 @@ func main() {
 	// Registering gRPC services
 	srvUrl := &handler.SetUrlHandler{LinkService: linkService, RedisClient: redis}
 	srvFeed := &handler.FeedHandler{LinkService: linkService, RedisClient: redis}
-	s := grpc.NewServer()
+	s := grpc.NewServer(grpc.ChainUnaryInterceptor(
+		handler.LoggingInterceptor,
+		handler.RecoveryInterceptor,
+	))
 	pb.RegisterSetUrlHandlerServer(s, srvUrl)
 	feedpb.RegisterFeedHandlerServiceServer(s, srvFeed)
 
-	logger.Println("Server running on :50051")
+	healthSrv := health.NewServer()
+	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	healthpb.RegisterHealthServer(s, healthSrv)
+	reflection.Register(s)
 
-	if err := s.Serve(lis); err != nil {
-		logger.Fatalf("failed to serve: %v", err)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		logger.Println("Server running on :50051")
+		if err := s.Serve(lis); err != nil {
+			logger.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	logger.Println("shutdown signal received")
+
+	done := make(chan struct{})
+	go func() {
+		s.GracefulStop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		logger.Println("graceful stop timed out, forcing shutdown")
+		s.Stop()
 	}
+
+	if serr := redis.Close(); serr != nil {
+		logger.Printf("redis close failed: %v", serr)
+	}
+	if sqlDB, derr := db.DB.DB(); derr == nil {
+		if cerr := sqlDB.Close(); cerr != nil {
+			logger.Printf("db close failed: %v", cerr)
+		}
+	}
+	logger.Println("shutdown complete")
 
 	// demoURL := "https://feeds.transistor.fm/cup-o-go"
 	// demoURL := "https://feeds.transistor.fm/cup-o-go"

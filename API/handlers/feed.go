@@ -77,6 +77,10 @@ func (h *FeedHandler) GetFeed(ctx context.Context, req *pb.GetFeedsRequest) (*pb
 }
 
 func (h *FeedHandler) resolveLinks(ctx context.Context, url string) (map[string]models.FeedType, error) {
+	if h.negativeExists(ctx, url) {
+		return nil, status.Errorf(codes.NotFound, "no feeds found for %s (retry later)", url)
+	}
+
 	cached, err := h.RedisClient.HGetAll(ctx, url)
 	if err != nil {
 		log.Println("redis lookup failed:", err)
@@ -90,11 +94,18 @@ func (h *FeedHandler) resolveLinks(ctx context.Context, url string) (map[string]
 			return nil, status.Errorf(codes.Internal, "db lookup failed for %s: %v", url, err)
 		}
 
-		detected, derr := rssdetector.Detect(ctx, url)
+		v, derr, _ := flightGroup.Do(detectFlightKey+url, func() (any, error) {
+			return rssdetector.Detect(ctx, url)
+		})
+		var detected []rssdetector.FeedLink
+		if v != nil {
+			detected, _ = v.([]rssdetector.FeedLink)
+		}
 		if derr != nil {
 			log.Println("detect failed:", derr)
 		}
 		if len(detected) == 0 {
+			h.markNegative(ctx, url)
 			return nil, status.Errorf(codes.NotFound, "no feeds found for %s", url)
 		}
 
@@ -106,7 +117,7 @@ func (h *FeedHandler) resolveLinks(ctx context.Context, url string) (map[string]
 		if aerr := h.LinkService.AddLink(models.LinkRepository{Url: url, FeedLinks: linkMap}); aerr != nil {
 			log.Println("persist links failed:", aerr)
 		}
-		if serr := h.RedisClient.HSet(ctx, redisKeyPrefix+url, utility.ToStringMap(linkMap)); serr != nil {
+		if serr := h.RedisClient.HSet(ctx, redisKeyPrefix+url, utility.ToStringMap(linkMap), linksTTL); serr != nil {
 			log.Println("cache links failed:", serr)
 		}
 
@@ -117,7 +128,7 @@ func (h *FeedHandler) resolveLinks(ctx context.Context, url string) (map[string]
 	if linkMap == nil {
 		linkMap = make(map[string]models.FeedType)
 	}
-	if serr := h.RedisClient.HSet(ctx, redisKeyPrefix+url, utility.ToStringMap(linkMap)); serr != nil {
+	if serr := h.RedisClient.HSet(ctx, redisKeyPrefix+url, utility.ToStringMap(linkMap), linksTTL); serr != nil {
 		log.Println("cache links failed:", serr)
 	}
 	return linkMap, nil
@@ -129,14 +140,26 @@ func (h *FeedHandler) fetchItems(ctx context.Context, linkMap map[string]models.
 		urls = append(urls, u)
 	}
 
+	cached, misses := h.loadCachedItems(ctx, urls)
+
 	sem := make(chan struct{}, fetchWorkers)
 	var (
 		wg    sync.WaitGroup
 		mu    sync.Mutex
-		items []*gofeed.Item
+		items = make([]*gofeed.Item, 0, len(urls))
 	)
 
-	for _, feedURL := range urls {
+	appendItems := func(list []*gofeed.Item) {
+		mu.Lock()
+		defer mu.Unlock()
+		items = append(items, list...)
+	}
+
+	for _, list := range cached {
+		appendItems(list)
+	}
+
+	for _, feedURL := range misses {
 		wg.Add(1)
 		go func(u string) {
 			defer wg.Done()
@@ -148,15 +171,21 @@ func (h *FeedHandler) fetchItems(ctx context.Context, linkMap map[string]models.
 				return
 			}
 
-			feed, err := utility.FeedParser(ctx, u)
+			v, err, _ := flightGroup.Do(fetchFlightKey+u, func() (any, error) {
+				feed, ferr := utility.FeedParser(ctx, u)
+				if ferr != nil {
+					return nil, ferr
+				}
+				h.storeItems(ctx, u, feed.Items)
+				return feed.Items, nil
+			})
 			if err != nil {
 				log.Printf("parse feed %s: %v", u, err)
 				return
 			}
-
-			mu.Lock()
-			items = append(items, feed.Items...)
-			mu.Unlock()
+			if parsed, ok := v.([]*gofeed.Item); ok {
+				appendItems(parsed)
+			}
 		}(feedURL)
 	}
 

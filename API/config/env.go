@@ -31,10 +31,10 @@ func LoadENV() *ENV {
 			Db_Name:  os.Getenv("DB_NAME"),
 			Ports:    os.Getenv("DB_PORT"),
 		},
-		Redis:    RedisENV{
+		Redis: RedisENV{
 			Addr:     os.Getenv("REDIS_ADDR"),
 			Password: os.Getenv("REDIS_PASSWORD"),
-			DB:       func() int {
+			DB: func() int {
 				db, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
 				return db
 			}(),
@@ -57,7 +57,6 @@ type DatabaseEnv struct {
 func (e *DatabaseEnv) String() string {
 	return "Loaded ENV" + ", Db_Name: " + e.Db_Name
 }
-
 
 type RedisENV struct {
 	Addr     string

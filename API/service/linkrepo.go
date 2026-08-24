@@ -36,7 +36,7 @@ func (lr *LinkRepoService) AddLink(link models.LinkRepository) error {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// Record doesn't exist → create a new one
 			newLink := models.LinkRepository{
-				Url: link.Url,
+				Url:       link.Url,
 				FeedLinks: link.FeedLinks,
 			}
 			return lr.db.Create(&newLink).Error

@@ -32,7 +32,13 @@ func (h *SetUrlHandler) SetUrl(ctx context.Context, req *pb.SetUrlRequest) (*pb.
 	ctx, cancel := context.WithTimeout(ctx, setTimeout)
 	defer cancel()
 
-	links, err := rssdetector.Detect(ctx, req.GetUrl())
+	v, err, _ := flightGroup.Do(detectFlightKey+req.GetUrl(), func() (any, error) {
+		return rssdetector.Detect(ctx, req.GetUrl())
+	})
+	var links []rssdetector.FeedLink
+	if v != nil {
+		links, _ = v.([]rssdetector.FeedLink)
+	}
 	if err != nil {
 		log.Println("detect failed:", err)
 		return nil, status.Errorf(codes.Unavailable,
@@ -52,9 +58,13 @@ func (h *SetUrlHandler) SetUrl(ctx context.Context, req *pb.SetUrlRequest) (*pb.
 		log.Println("persist links failed:", aerr)
 	}
 
-	if serr := h.RedisClient.HSet(ctx, redisKeyPrefix+req.GetUrl(), utility.ToStringMap(linkMap)); serr != nil {
+	if serr := h.RedisClient.HSet(ctx, redisKeyPrefix+req.GetUrl(), utility.ToStringMap(linkMap), linksTTL); serr != nil {
 		return nil, status.Errorf(codes.Internal,
 			"failed to cache feed links for %s: %v", req.GetUrl(), serr)
+	}
+
+	if derr := h.RedisClient.Del(ctx, negativeKeyPrefix+req.GetUrl()); derr != nil {
+		log.Println("negative cache clear failed:", derr)
 	}
 
 	names := make([]string, len(links))
