@@ -9,8 +9,9 @@ import (
 )
 
 type ENV struct {
-	Database DatabaseEnv
-	Redis    RedisENV
+	Database      DatabaseEnv
+	Redis         RedisENV
+	YoutubeAPIKey string
 }
 
 func (e *ENV) String() string {
@@ -24,6 +25,7 @@ func LoadENV() *ENV {
 	}
 
 	return &ENV{
+		YoutubeAPIKey: os.Getenv("YOUTUBE_API_KEY"),
 		Database: DatabaseEnv{
 			Host:     os.Getenv("DB_HOST"),
 			User:     os.Getenv("DB_USER"),

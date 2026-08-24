@@ -50,9 +50,16 @@ func FormatItem(item *feedpb.GetFeedsResponse_Feed) string {
 		fmt.Fprintf(&b, "%s\n", html.EscapeString(cleanText(desc, snippetLen)))
 	}
 
+	var meta []string
+	if src := item.GetSourceTitle(); src != "" {
+		meta = append(meta, "via "+cleanText(src, 60))
+	}
 	if item.GetPublishedAt() != nil {
 		ts := item.GetPublishedAt().AsTime().UTC()
-		fmt.Fprintf(&b, "\n<i>%s</i>", ts.Format("02 Jan 2006, 15:04 UTC"))
+		meta = append(meta, ts.Format("02 Jan 2006, 15:04 UTC"))
+	}
+	if len(meta) > 0 {
+		fmt.Fprintf(&b, "\n<i>%s</i>", html.EscapeString(strings.Join(meta, " · ")))
 	}
 
 	msg := b.String()
@@ -62,8 +69,17 @@ func FormatItem(item *feedpb.GetFeedsResponse_Feed) string {
 	return msg
 }
 
-// FormatDigest renders many new items into one message.
+// FormatDigest renders many new items into one message. Source names are
+// appended per entry only when the digest mixes more than one channel.
 func FormatDigest(items []*feedpb.GetFeedsResponse_Feed) string {
+	sources := make(map[string]struct{})
+	for _, item := range items {
+		if src := item.GetSourceTitle(); src != "" {
+			sources[src] = struct{}{}
+		}
+	}
+	mixed := len(sources) > 1
+
 	var b strings.Builder
 	fmt.Fprintf(&b, "<b>%d new items</b>\n", len(items))
 	for i, item := range items {
@@ -72,15 +88,22 @@ func FormatDigest(items []*feedpb.GetFeedsResponse_Feed) string {
 		if item.GetPublishedAt() != nil {
 			date = item.GetPublishedAt().AsTime().UTC().Format("02 Jan")
 		}
-		line := fmt.Sprintf("%d. %s", i+1, html.EscapeString(title))
+		src := ""
+		if mixed {
+			src = cleanText(item.GetSourceTitle(), 40)
+		}
+
+		var line string
+		if link := firstLink(item); link != "" {
+			line = fmt.Sprintf("%d. <a href=\"%s\">%s</a>", i+1, html.EscapeString(link), html.EscapeString(title))
+		} else {
+			line = fmt.Sprintf("%d. %s", i+1, html.EscapeString(title))
+		}
 		if date != "" {
 			line += fmt.Sprintf(" <i>(%s)</i>", date)
 		}
-		if link := firstLink(item); link != "" {
-			line = fmt.Sprintf("%d. <a href=\"%s\">%s</a>", i+1, html.EscapeString(link), html.EscapeString(title))
-			if date != "" {
-				line += fmt.Sprintf(" <i>(%s)</i>", date)
-			}
+		if src != "" {
+			line += fmt.Sprintf(" <i>[%s]</i>", html.EscapeString(src))
 		}
 		fmt.Fprintf(&b, "%s\n", line)
 	}

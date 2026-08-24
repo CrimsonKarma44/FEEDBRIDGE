@@ -11,6 +11,7 @@ import (
 	pb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/setUrl"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/utility"
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/youtube"
 	rssdetector "github.com/CrimsonKarma44/rss_detector"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,6 +23,7 @@ type SetUrlHandler struct {
 	pb.UnimplementedSetUrlHandlerServer
 	LinkService *service.LinkRepoService
 	RedisClient *config.RedisDB
+	YouTube     *youtube.Resolver
 }
 
 func (h *SetUrlHandler) SetUrl(ctx context.Context, req *pb.SetUrlRequest) (*pb.SetUrlResponse, error) {
@@ -33,16 +35,14 @@ func (h *SetUrlHandler) SetUrl(ctx context.Context, req *pb.SetUrlRequest) (*pb.
 	defer cancel()
 
 	v, err, _ := flightGroup.Do(detectFlightKey+req.GetUrl(), func() (any, error) {
-		return rssdetector.Detect(ctx, req.GetUrl())
+		return resolveFeeds(ctx, h.YouTube, req.GetUrl())
 	})
 	var links []rssdetector.FeedLink
 	if v != nil {
 		links, _ = v.([]rssdetector.FeedLink)
 	}
 	if err != nil {
-		log.Println("detect failed:", err)
-		return nil, status.Errorf(codes.Unavailable,
-			"feed detection failed for %s: %v", req.GetUrl(), err)
+		return nil, detectErrorStatus(req.GetUrl(), err)
 	}
 
 	if len(links) == 0 {

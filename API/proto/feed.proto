@@ -44,6 +44,8 @@ message GetFeedsResponse {
         repeated string categories  = 7;
 
         google.protobuf.Timestamp published_at = 8;
+
+        string source_title = 9;
     }
 
 }

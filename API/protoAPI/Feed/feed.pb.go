@@ -128,6 +128,7 @@ type GetFeedsResponse_Feed struct {
 	Links         []string                           `protobuf:"bytes,6,rep,name=links,proto3" json:"links,omitempty"`
 	Categories    []string                           `protobuf:"bytes,7,rep,name=categories,proto3" json:"categories,omitempty"`
 	PublishedAt   *timestamppb.Timestamp             `protobuf:"bytes,8,opt,name=published_at,json=publishedAt,proto3" json:"published_at,omitempty"`
+	SourceTitle   string                             `protobuf:"bytes,9,opt,name=source_title,json=sourceTitle,proto3" json:"source_title,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -216,6 +217,13 @@ func (x *GetFeedsResponse_Feed) GetPublishedAt() *timestamppb.Timestamp {
 		return x.PublishedAt
 	}
 	return nil
+}
+
+func (x *GetFeedsResponse_Feed) GetSourceTitle() string {
+	if x != nil {
+		return x.SourceTitle
+	}
+	return ""
 }
 
 type GetFeedsResponse_Feed_Person struct {
@@ -397,9 +405,9 @@ const file_proto_feed_proto_rawDesc = "" +
 	"\x10proto/feed.proto\x12\ahandler\x1a\x1fgoogle/protobuf/timestamp.proto\"S\n" +
 	"\x0fGetFeedsRequest\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12.\n" +
-	"\x04from\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04from\"\x8f\x05\n" +
+	"\x04from\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04from\"\xb2\x05\n" +
 	"\x10GetFeedsResponse\x124\n" +
-	"\x05feeds\x18\x01 \x03(\v2\x1e.handler.GetFeedsResponse.FeedR\x05feeds\x1a\xc4\x04\n" +
+	"\x05feeds\x18\x01 \x03(\v2\x1e.handler.GetFeedsResponse.FeedR\x05feeds\x1a\xe7\x04\n" +
 	"\x04Feed\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12<\n" +
@@ -412,7 +420,8 @@ const file_proto_feed_proto_rawDesc = "" +
 	"\n" +
 	"categories\x18\a \x03(\tR\n" +
 	"categories\x12=\n" +
-	"\fpublished_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\vpublishedAt\x1a2\n" +
+	"\fpublished_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\vpublishedAt\x12!\n" +
+	"\fsource_title\x18\t \x01(\tR\vsourceTitle\x1a2\n" +
 	"\x06Person\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x1aG\n" +

@@ -75,6 +75,10 @@ func FriendlyError(err error) string {
 		return "no feeds were found for that URL"
 	case codes.NotFound:
 		return "no feeds were found for that URL"
+	case codes.ResourceExhausted:
+		return "that website is temporarily limiting automated requests - try again in a few minutes"
+	case codes.PermissionDenied:
+		return "that website is blocking automated access"
 	case codes.Unavailable:
 		return "the feed service is temporarily unavailable, try again later"
 	default:

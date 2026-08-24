@@ -14,6 +14,7 @@ import (
 	pb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/Feed"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/utility"
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/youtube"
 	rssdetector "github.com/CrimsonKarma44/rss_detector"
 	"github.com/mmcdole/gofeed"
 	"google.golang.org/grpc/codes"
@@ -32,6 +33,7 @@ type FeedHandler struct {
 	pb.UnimplementedFeedHandlerServiceServer
 	LinkService *service.LinkRepoService
 	RedisClient *config.RedisDB
+	YouTube     *youtube.Resolver
 }
 
 func (h *FeedHandler) GetFeed(ctx context.Context, req *pb.GetFeedsRequest) (*pb.GetFeedsResponse, error) {
@@ -50,7 +52,7 @@ func (h *FeedHandler) GetFeed(ctx context.Context, req *pb.GetFeedsRequest) (*pb
 	items := h.fetchItems(ctx, linkMap)
 
 	sort.SliceStable(items, func(i, j int) bool {
-		ti, tj := items[i].PublishedParsed, items[j].PublishedParsed
+		ti, tj := items[i].item.PublishedParsed, items[j].item.PublishedParsed
 		if ti == nil {
 			return false
 		}
@@ -66,11 +68,12 @@ func (h *FeedHandler) GetFeed(ctx context.Context, req *pb.GetFeedsRequest) (*pb
 	}
 
 	feeds := make([]*pb.GetFeedsResponse_Feed, 0, len(items))
-	for _, item := range items {
-		if !from.IsZero() && item.PublishedParsed != nil && item.PublishedParsed.Before(from) {
+	for _, entry := range items {
+		pub := entry.item.PublishedParsed
+		if !from.IsZero() && pub != nil && pub.Before(from) {
 			continue
 		}
-		feeds = append(feeds, toItem(item))
+		feeds = append(feeds, toItem(entry.srcTitle, entry.item))
 	}
 
 	return &pb.GetFeedsResponse{Feeds: feeds}, nil
@@ -95,14 +98,17 @@ func (h *FeedHandler) resolveLinks(ctx context.Context, url string) (map[string]
 		}
 
 		v, derr, _ := flightGroup.Do(detectFlightKey+url, func() (any, error) {
-			return rssdetector.Detect(ctx, url)
+			return resolveFeeds(ctx, h.YouTube, url)
 		})
 		var detected []rssdetector.FeedLink
 		if v != nil {
 			detected, _ = v.([]rssdetector.FeedLink)
 		}
 		if derr != nil {
-			log.Println("detect failed:", derr)
+			if isPermanentDetectErr(derr) {
+				h.markNegative(ctx, url)
+			}
+			return nil, detectErrorStatus(url, derr)
 		}
 		if len(detected) == 0 {
 			h.markNegative(ctx, url)
@@ -134,7 +140,13 @@ func (h *FeedHandler) resolveLinks(ctx context.Context, url string) (map[string]
 	return linkMap, nil
 }
 
-func (h *FeedHandler) fetchItems(ctx context.Context, linkMap map[string]models.FeedType) []*gofeed.Item {
+// itemWithSource pairs a parsed item with the channel title it came from.
+type itemWithSource struct {
+	srcTitle string
+	item     *gofeed.Item
+}
+
+func (h *FeedHandler) fetchItems(ctx context.Context, linkMap map[string]models.FeedType) []itemWithSource {
 	urls := make([]string, 0, len(linkMap))
 	for u := range linkMap {
 		urls = append(urls, u)
@@ -146,17 +158,19 @@ func (h *FeedHandler) fetchItems(ctx context.Context, linkMap map[string]models.
 	var (
 		wg    sync.WaitGroup
 		mu    sync.Mutex
-		items = make([]*gofeed.Item, 0, len(urls))
+		items = make([]itemWithSource, 0, len(urls))
 	)
 
-	appendItems := func(list []*gofeed.Item) {
+	appendItems := func(srcTitle string, list []*gofeed.Item) {
 		mu.Lock()
 		defer mu.Unlock()
-		items = append(items, list...)
+		for _, it := range list {
+			items = append(items, itemWithSource{srcTitle: srcTitle, item: it})
+		}
 	}
 
-	for _, list := range cached {
-		appendItems(list)
+	for _, ff := range cached {
+		appendItems(ff.title, ff.items)
 	}
 
 	for _, feedURL := range misses {
@@ -176,15 +190,15 @@ func (h *FeedHandler) fetchItems(ctx context.Context, linkMap map[string]models.
 				if ferr != nil {
 					return nil, ferr
 				}
-				h.storeItems(ctx, u, feed.Items)
-				return feed.Items, nil
+				h.storeItems(ctx, u, feed.Title, feed.Items)
+				return fetchedFeed{title: feed.Title, items: feed.Items}, nil
 			})
 			if err != nil {
 				log.Printf("parse feed %s: %v", u, err)
 				return
 			}
-			if parsed, ok := v.([]*gofeed.Item); ok {
-				appendItems(parsed)
+			if ff, ok := v.(fetchedFeed); ok {
+				appendItems(ff.title, ff.items)
 			}
 		}(feedURL)
 	}
@@ -193,7 +207,7 @@ func (h *FeedHandler) fetchItems(ctx context.Context, linkMap map[string]models.
 	return items
 }
 
-func toItem(item *gofeed.Item) *pb.GetFeedsResponse_Feed {
+func toItem(srcTitle string, item *gofeed.Item) *pb.GetFeedsResponse_Feed {
 	description := item.Description
 	if description == "" {
 		description = item.Content
@@ -233,5 +247,6 @@ func toItem(item *gofeed.Item) *pb.GetFeedsResponse_Feed {
 		Links:       item.Links,
 		Categories:  item.Categories,
 		PublishedAt: publishedAt,
+		SourceTitle: srcTitle,
 	}
 }

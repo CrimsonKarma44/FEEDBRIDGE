@@ -15,6 +15,7 @@ import (
 	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/Feed"
 	pb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/setUrl"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/youtube"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -52,10 +53,11 @@ func main() {
 
 	// Initializing link service
 	linkService := service.NewLinkRepoService(db.DB) // redis
+	ytResolver := youtube.NewResolver(env.YoutubeAPIKey)
 
 	// Registering gRPC services
-	srvUrl := &handler.SetUrlHandler{LinkService: linkService, RedisClient: redis}
-	srvFeed := &handler.FeedHandler{LinkService: linkService, RedisClient: redis}
+	srvUrl := &handler.SetUrlHandler{LinkService: linkService, RedisClient: redis, YouTube: ytResolver}
+	srvFeed := &handler.FeedHandler{LinkService: linkService, RedisClient: redis, YouTube: ytResolver}
 	s := grpc.NewServer(grpc.ChainUnaryInterceptor(
 		handler.LoggingInterceptor,
 		handler.RecoveryInterceptor,

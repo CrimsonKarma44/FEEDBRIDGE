@@ -23,8 +23,20 @@ const (
 
 var flightGroup singleflight.Group
 
-func (h *FeedHandler) loadCachedItems(ctx context.Context, urls []string) (map[string][]*gofeed.Item, []string) {
-	hits := make(map[string][]*gofeed.Item, len(urls))
+// CachedItem is the JSON shape stored under items:<feedURL>.
+type CachedItem struct {
+	SourceTitle string       `json:"src"`
+	Item        *gofeed.Item `json:"item"`
+}
+
+// fetchedFeed bundles a parsed feed with its channel title.
+type fetchedFeed struct {
+	title string
+	items []*gofeed.Item
+}
+
+func (h *FeedHandler) loadCachedItems(ctx context.Context, urls []string) (map[string]fetchedFeed, []string) {
+	hits := make(map[string]fetchedFeed, len(urls))
 	if len(urls) == 0 {
 		return hits, nil
 	}
@@ -46,19 +58,38 @@ func (h *FeedHandler) loadCachedItems(ctx context.Context, urls []string) (map[s
 			misses = append(misses, urls[i])
 			continue
 		}
-		var items []*gofeed.Item
-		if jerr := json.Unmarshal([]byte(*val), &items); jerr != nil {
+		var cached []CachedItem
+		if jerr := json.Unmarshal([]byte(*val), &cached); jerr != nil || len(cached) == 0 {
 			log.Println("item cache decode failed:", jerr)
 			misses = append(misses, urls[i])
 			continue
 		}
-		hits[urls[i]] = items
+		ff := fetchedFeed{}
+		for _, c := range cached {
+			if c.Item == nil {
+				ff.items = nil
+				break
+			}
+			if ff.title == "" {
+				ff.title = c.SourceTitle
+			}
+			ff.items = append(ff.items, c.Item)
+		}
+		if ff.items == nil {
+			misses = append(misses, urls[i])
+			continue
+		}
+		hits[urls[i]] = ff
 	}
 	return hits, misses
 }
 
-func (h *FeedHandler) storeItems(ctx context.Context, feedURL string, items []*gofeed.Item) {
-	if err := h.RedisClient.SetJSON(ctx, itemKeyPrefix+feedURL, itemsTTL, items); err != nil {
+func (h *FeedHandler) storeItems(ctx context.Context, feedURL, sourceTitle string, items []*gofeed.Item) {
+	cached := make([]CachedItem, 0, len(items))
+	for _, it := range items {
+		cached = append(cached, CachedItem{SourceTitle: sourceTitle, Item: it})
+	}
+	if err := h.RedisClient.SetJSON(ctx, itemKeyPrefix+feedURL, itemsTTL, cached); err != nil {
 		log.Println("item cache store failed:", err)
 	}
 }
