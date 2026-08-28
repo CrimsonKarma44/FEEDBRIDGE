@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/Feed"
@@ -18,6 +19,33 @@ type Sender interface {
 	Send(to tele.Recipient, what any, opts ...any) (*tele.Message, error)
 }
 
+func isParseEntitiesErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "can't parse entities")
+}
+
+func sendHTML(bot Sender, chatID int64, text string, opts *tele.SendOptions) error {
+	if opts == nil {
+		opts = &tele.SendOptions{}
+	}
+	htmlOpts := *opts
+	htmlOpts.ParseMode = tele.ModeHTML
+	_, err := bot.Send(tele.ChatID(chatID), text, &htmlOpts)
+	if err == nil {
+		return nil
+	}
+	if !isParseEntitiesErr(err) {
+		return err
+	}
+	log.Printf("html parse failed for chat %d, retrying plain text: %v", chatID, err)
+	plainOpts := *opts
+	plainOpts.ParseMode = ""
+	_, err = bot.Send(tele.ChatID(chatID), htmlToPlain(text), &plainOpts)
+	return err
+}
+
 // SendItems delivers items as individual HTML messages with throttling.
 // Link previews are left enabled so Telegram renders its native card for each
 // item's article link. Returns how many items were successfully delivered;
@@ -25,10 +53,7 @@ type Sender interface {
 func SendItems(bot Sender, chatID int64, items []*feedpb.GetFeedsResponse_Feed, gap time.Duration) int {
 	delivered := 0
 	for _, item := range items {
-		_, err := bot.Send(tele.ChatID(chatID), FormatItem(item), &tele.SendOptions{
-			ParseMode: tele.ModeHTML,
-		})
-		if err != nil {
+		if err := sendHTML(bot, chatID, FormatItem(item), &tele.SendOptions{}); err != nil {
 			log.Printf("deliver to chat %d failed: %v", chatID, err)
 			break
 		}
@@ -38,13 +63,21 @@ func SendItems(bot Sender, chatID int64, items []*feedpb.GetFeedsResponse_Feed, 
 	return delivered
 }
 
-// SendDigest delivers many new items collapsed into one message.
+// SendDigest delivers many new items collapsed into one or more messages,
+// splitting on complete item lines so Telegram HTML tags stay balanced.
 func SendDigest(bot Sender, chatID int64, items []*feedpb.GetFeedsResponse_Feed) error {
-	_, err := bot.Send(tele.ChatID(chatID), FormatDigest(items), &tele.SendOptions{
-		ParseMode:             tele.ModeHTML,
-		DisableWebPagePreview: true,
-	})
-	return err
+	pages := FormatDigestPages(items)
+	for i, page := range pages {
+		if err := sendHTML(bot, chatID, page, &tele.SendOptions{
+			DisableWebPagePreview: true,
+		}); err != nil {
+			return err
+		}
+		if i < len(pages)-1 {
+			time.Sleep(sendGap)
+		}
+	}
+	return nil
 }
 
 // FetchTask builds the worker job for one subscription: fetch items newer than

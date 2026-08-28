@@ -95,8 +95,9 @@ In groups only **admins** can manage feeds.
 The whole stack runs on one always-free ARM VM: both binaries as systemd services, native Postgres + Redis. Nothing is exposed publicly — the bot polls Telegram outbound and talks to the API over loopback.
 
 ### 1. Account & VM
-1. Sign up at oracle.com/cloud/free (card needed for identity only). Pick a **low-demand region** for ARM capacity — it's permanent.
-2. Compute → Create Instance: Ubuntu 24.04 **aarch64**, shape `Ampere A1 Flex` (2 OCPU / 12 GB), your SSH key. Security list: port 22 only.
+1. Sign up at oracle.com/cloud/free (card needed for identity only). Pick a **low-demand region** for ARM capacity — it's permanent. Current community consensus: **avoid** Ashburn/Phoenix/San Jose (chronically dry); **Frankfurt**, **Singapore**, and newer regions (**Hyderabad**, **Mumbai**) provision reliably. Latency is irrelevant here (the bot pushes outbound), so favor capacity odds.
+2. Compute → Create Instance: Ubuntu 24.04 **aarch64**, shape `Ampere A1 Flex` sized at exactly **2 OCPU / 12 GB** (the 2026 free allowance — larger gets auto-terminated), your SSH key. Security list: port 22 only.
+3. If you hit *"Out of host capacity"*: switch Availability Domain, drop to 1 OCPU temporarily, or run [oci-arm-catcher](https://github.com/alexpua/oci-arm-catcher) to auto-grab the next free slot.
 
 ### 2. Bootstrap
 ```bash
