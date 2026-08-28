@@ -145,21 +145,41 @@ func FormatDigest(items []*feedpb.GetFeedsResponse_Feed) string {
 	return pages[0]
 }
 
-func digestMixed(items []*feedpb.GetFeedsResponse_Feed) bool {
-	sources := make(map[string]struct{})
+// digestSources reports whether the batch mixes channels, and the via-label
+// when every named item comes from a single feed or YouTube channel.
+func digestSources(items []*feedpb.GetFeedsResponse_Feed) (mixed bool, via string) {
+	seen := make(map[string]struct{})
+	var names []string
 	for _, item := range items {
-		if src := item.GetSourceTitle(); src != "" {
-			sources[src] = struct{}{}
+		src := cleanText(item.GetSourceTitle(), 60)
+		if src == "" {
+			continue
 		}
+		if _, ok := seen[src]; ok {
+			continue
+		}
+		seen[src] = struct{}{}
+		names = append(names, src)
 	}
-	return len(sources) > 1
+	if len(names) == 1 {
+		return false, names[0]
+	}
+	return len(names) > 1, ""
 }
 
-func digestHeader(n int, continued bool) string {
-	if continued {
-		return fmt.Sprintf("<b>%d new items (continued)</b>\n", n)
+func digestHeader(n int, via string, continued bool) string {
+	noun := "items"
+	if n == 1 {
+		noun = "item"
 	}
-	return fmt.Sprintf("<b>%d new items</b>\n", n)
+	label := fmt.Sprintf("%d new %s", n, noun)
+	if via != "" {
+		label += " via " + html.EscapeString(via)
+	}
+	if continued {
+		label += " (continued)"
+	}
+	return "<b>" + label + "</b>\n"
 }
 
 func digestLine(i int, item *feedpb.GetFeedsResponse_Feed, mixed, withLink bool) string {
@@ -191,7 +211,7 @@ func FormatDigestPages(items []*feedpb.GetFeedsResponse_Feed) []string {
 	if len(items) == 0 {
 		return nil
 	}
-	mixed := digestMixed(items)
+	mixed, via := digestSources(items)
 	n := len(items)
 
 	fits := func(page, line string) bool {
@@ -210,13 +230,13 @@ func FormatDigestPages(items []*feedpb.GetFeedsResponse_Feed) []string {
 		continued = true
 	}
 
-	b.WriteString(digestHeader(n, false))
+	b.WriteString(digestHeader(n, via, false))
 	for i, item := range items {
 		line := digestLine(i, item, mixed, true)
 		if !fits(b.String(), line) {
-			if utf8.RuneCountInString(b.String()) > utf8.RuneCountInString(digestHeader(n, continued)) {
+			if utf8.RuneCountInString(b.String()) > utf8.RuneCountInString(digestHeader(n, via, continued)) {
 				flush()
-				b.WriteString(digestHeader(n, true))
+				b.WriteString(digestHeader(n, via, true))
 			}
 			if !fits(b.String(), line) {
 				line = digestLine(i, item, mixed, false)

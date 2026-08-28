@@ -62,8 +62,8 @@ func TestFormatDigestPages_SplitsWithoutBreakingTags(t *testing.T) {
 	var combined strings.Builder
 	for i, page := range pages {
 		assertBalancedHTML(t, page)
-		if !strings.Contains(page, "new items") {
-			t.Fatalf("page %d missing header", i)
+		if !strings.Contains(page, "new items via Example") {
+			t.Fatalf("page %d missing labeled header:\n%s", i, page)
 		}
 		combined.WriteString(page)
 	}
@@ -172,6 +172,74 @@ func TestHtmlToPlain_StripsTags(t *testing.T) {
 func TestFormatDigestPages_Empty(t *testing.T) {
 	if pages := FormatDigestPages(nil); pages != nil {
 		t.Fatalf("got %v, want nil", pages)
+	}
+}
+
+func TestFormatDigest_LabelsSingleSource(t *testing.T) {
+	items := []*feedpb.GetFeedsResponse_Feed{
+		feedItem("A", "https://example.com/a"),
+		feedItem("B", "https://example.com/b"),
+	}
+	out := FormatDigest(items)
+	if !strings.Contains(out, "<b>2 new items via Example</b>") {
+		t.Fatalf("header = %q", out)
+	}
+	if strings.Contains(out, "[Example]") {
+		t.Fatalf("single-source digest should not repeat the name per line:\n%s", out)
+	}
+}
+
+func TestFormatDigest_SingularItem(t *testing.T) {
+	out := FormatDigest([]*feedpb.GetFeedsResponse_Feed{
+		feedItem("Only", "https://example.com/a"),
+	})
+	if !strings.Contains(out, "<b>1 new item via Example</b>") {
+		t.Fatalf("header = %q", out)
+	}
+	if strings.Contains(out, "items") {
+		t.Fatalf("singular digest used plural:\n%s", out)
+	}
+}
+
+func TestFormatDigest_MixedSourcesKeepPerLine(t *testing.T) {
+	a := feedItem("A", "https://example.com/a")
+	a.SourceTitle = "Veritasium"
+	b := feedItem("B", "https://example.com/b")
+	b.SourceTitle = "CGP Grey"
+	out := FormatDigest([]*feedpb.GetFeedsResponse_Feed{a, b})
+	if strings.Contains(out, "via ") {
+		t.Fatalf("mixed digest should not use a via header:\n%s", out)
+	}
+	if !strings.Contains(out, "<b>2 new items</b>") {
+		t.Fatalf("header = %q", out)
+	}
+	if !strings.Contains(out, "[Veritasium]") || !strings.Contains(out, "[CGP Grey]") {
+		t.Fatalf("mixed digest missing per-line sources:\n%s", out)
+	}
+}
+
+func TestFormatDigest_EmptySourceOmitsVia(t *testing.T) {
+	item := feedItem("A", "https://example.com/a")
+	item.SourceTitle = ""
+	out := FormatDigest([]*feedpb.GetFeedsResponse_Feed{item, item})
+	if strings.Contains(out, "via ") {
+		t.Fatalf("empty source leaked via:\n%s", out)
+	}
+	if !strings.Contains(out, "<b>2 new items</b>") {
+		t.Fatalf("header = %q", out)
+	}
+}
+
+func TestFormatDigest_EscapesSourceInHeader(t *testing.T) {
+	item := feedItem("A", "https://example.com/a")
+	item.SourceTitle = `Tom & Jerry <channel>`
+	out := FormatDigest([]*feedpb.GetFeedsResponse_Feed{item})
+	assertBalancedHTML(t, out)
+	if !strings.Contains(out, "via Tom &amp; Jerry") {
+		t.Fatalf("source not escaped in header:\n%s", out)
+	}
+	if strings.Contains(out, "<channel>") {
+		t.Fatalf("raw tags in source header:\n%s", out)
 	}
 }
 
