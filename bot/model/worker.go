@@ -3,6 +3,8 @@ package model
 import (
 	"context"
 	"log"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -24,6 +26,12 @@ type WorkerPool struct {
 }
 
 func WorkerCount() int {
+	if s := os.Getenv("WORKER_COUNT"); s != "" {
+		n, err := strconv.Atoi(s)
+		if err == nil && n > 0 {
+			return n
+		}
+	}
 	return workerCount
 }
 

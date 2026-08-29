@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 	"strconv"
 
@@ -19,10 +18,9 @@ func (e *ENV) String() string {
 }
 
 func LoadENV() *ENV {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
+	// Optional: systemd injects /etc/feedbridge/api.env; a local .env is only
+	// for interactive `go run`. A missing file is not an error.
+	_ = godotenv.Load()
 
 	return &ENV{
 		YoutubeAPIKey: os.Getenv("YOUTUBE_API_KEY"),

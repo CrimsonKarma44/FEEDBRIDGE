@@ -46,10 +46,15 @@ func main() {
 	redis := config.NewRedisDB(env)
 	logger.Printf("Redis connection established: %v\n", redis)
 
-	lis, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		logger.Fatalf("failed to listen: %v", err)
+	listenAddr := os.Getenv("LISTEN_ADDR")
+	if listenAddr == "" {
+		listenAddr = "127.0.0.1:50051"
 	}
+	lis, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		logger.Fatalf("failed to listen on %s: %v", listenAddr, err)
+	}
+	logger.Printf("listening on %s", listenAddr)
 
 	// Initializing link service
 	linkService := service.NewLinkRepoService(db.DB) // redis

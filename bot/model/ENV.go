@@ -40,9 +40,9 @@ func defaultString(v, fallback string) string {
 }
 
 func UpdateEnv() (*ENV, error) {
-	if err := godotenv.Load(); err != nil {
-		return nil, err
-	}
+	// Optional: systemd injects /etc/feedbridge/bot.env; a local .env is only
+	// for interactive `go run`. A missing file is not an error.
+	_ = godotenv.Load()
 
 	return &ENV{
 		Token:   os.Getenv("TELEGRAM_BOT_TOKEN"),

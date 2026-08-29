@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Bootstrap a fresh Ubuntu (arm64) VM for FEEDBRIDGE.
+# Bootstrap a fresh Ubuntu (amd64) VM for FEEDBRIDGE.
+# Tuned for Google Cloud Always Free e2-micro (1 GB RAM).
 # Usage: sudo ./setup-server.sh
 # Run ONCE on the server. Idempotent where practical.
 set -euo pipefail
@@ -27,15 +28,28 @@ sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='feedbridge'
     sudo -u postgres psql -c "CREATE DATABASE feedbridge OWNER deus;"
 sudo -u postgres psql -c "ALTER USER deus WITH PASSWORD '${DBPASS}';"
 
+# Keep the 1 GB e2-micro from swapping under Postgres defaults (~128MB+).
+sudo -u postgres psql -c "ALTER SYSTEM SET shared_buffers = '64MB';"
+sudo -u postgres psql -c "ALTER SYSTEM SET work_mem = '4MB';"
+sudo -u postgres psql -c "ALTER SYSTEM SET maintenance_work_mem = '32MB';"
+sudo -u postgres psql -c "ALTER SYSTEM SET effective_cache_size = '256MB';"
+
 echo "==> redis"
-REDIS_PASS="$(openssl rand -hex 16)"
-if ! grep -q '^requirepass' /etc/redis/redis.conf; then
-    echo "requirepass ${REDIS_PASS}" >> /etc/redis/redis.conf
+REDIS_CONF=/etc/redis/redis.conf
+if grep -q '^requirepass ' "$REDIS_CONF"; then
+    REDIS_PASS="$(awk '/^requirepass /{print $2; exit}' "$REDIS_CONF")"
+else
+    REDIS_PASS="$(openssl rand -hex 16)"
+    echo "requirepass ${REDIS_PASS}" >> "$REDIS_CONF"
 fi
-# Loopback-only is the default; enforce anyway.
-grep -q '^bind 127.0.0.1' /etc/redis/redis.conf || sed -i 's/^bind .*/bind 127.0.0.1/' /etc/redis/redis.conf
+grep -q '^bind 127.0.0.1' "$REDIS_CONF" || sed -i 's/^bind .*/bind 127.0.0.1 ::1/' "$REDIS_CONF"
+if ! grep -q '^maxmemory ' "$REDIS_CONF"; then
+    echo "maxmemory 64mb" >> "$REDIS_CONF"
+    echo "maxmemory-policy allkeys-lru" >> "$REDIS_CONF"
+fi
+
 systemctl enable --now redis-server postgresql
-systemctl restart redis-server
+systemctl restart postgresql redis-server
 
 echo "==> firewall"
 ufw default deny incoming
@@ -43,18 +57,28 @@ ufw default allow outgoing
 ufw allow OpenSSH
 yes | ufw enable
 
-cat <<'EOF'
+cat <<EOF
 
 ============================================================
  Server bootstrap complete.
 
+ REDIS_PASSWORD=${REDIS_PASS}
+
  Next steps:
-   1) Copy deploy/env/*.env.example to /etc/feedbridge/api.env
-      and /etc/feedbridge/bot.env, fill in real values.
-      REDIS_PASSWORD (if newly generated): ${REDIS_PASS shown above}
-   2) Install units: cp deploy/*.service /etc/systemd/system/
-      systemctl daemon-reload
-   3) From your machine: make deploy-api / make deploy-bot
-      (or deploy/deploy-api.sh etc.)
+   1) Copy env examples to /etc/feedbridge and fill secrets:
+        sudo cp ~/deploy/env/api.env.example /etc/feedbridge/api.env
+        sudo cp ~/deploy/env/bot.env.example /etc/feedbridge/bot.env
+        sudo chmod 600 /etc/feedbridge/*.env
+        sudoedit /etc/feedbridge/api.env /etc/feedbridge/bot.env
+      Use the REDIS_PASSWORD printed above and the Postgres password
+      you just set. Set TELEGRAM_BOT_TOKEN in bot.env.
+      On the e2-micro keep WORKER_COUNT=3.
+   2) Install units:
+        sudo cp ~/deploy/feedbridge-*.service /etc/systemd/system/
+        sudo systemctl daemon-reload
+   3) From your laptop (do not compile on this VM):
+        make -C API deploy HOST=\$USER@\$(curl -s ifconfig.me)
+        make -C bot deploy HOST=\$USER@\$(curl -s ifconfig.me)
+   4) sudo systemctl enable --now feedbridge-api feedbridge-bot
 ============================================================
 EOF

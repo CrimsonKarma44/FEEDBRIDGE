@@ -90,60 +90,91 @@ In groups only **admins** can manage feeds.
 - Cache layers: repeat `GetFeed` calls within the item TTL are served entirely from Redis.
 - Subscriptions are keyed on the **resolved feed URL** (not the input URL): adding any page of a site whose feed you already follow answers "already subscribed" instead of creating a duplicate.
 
-## Deployment (Oracle Cloud Always Free — single VM, $0)
+## Deployment (Google Cloud Always Free — e2-micro, $0)
 
-The whole stack runs on one always-free ARM VM: both binaries as systemd services, native Postgres + Redis. Nothing is exposed publicly — the bot polls Telegram outbound and talks to the API over loopback.
+One **amd64** VM: native Postgres + Redis, API and bot as systemd services. Nothing is public except SSH. The bot talks to Telegram outbound; the API listens on `127.0.0.1:50051` only.
+
+Do **not** run Docker Compose on this machine (1 GB RAM). Do **not** compile on the VM (Go + `rss_detector` replace path live on your laptop). Cross-compile `linux/amd64` at home and `scp` the binaries.
 
 ### 1. Account & VM
-1. Sign up at oracle.com/cloud/free (card needed for identity only). Pick a **low-demand region** for ARM capacity — it's permanent. Current community consensus: **avoid** Ashburn/Phoenix/San Jose (chronically dry); **Frankfurt**, **Singapore**, and newer regions (**Hyderabad**, **Mumbai**) provision reliably. Latency is irrelevant here (the bot pushes outbound), so favor capacity odds.
-2. Compute → Create Instance: Ubuntu 24.04 **aarch64**, shape `Ampere A1 Flex` sized at exactly **2 OCPU / 12 GB** (the 2026 free allowance — larger gets auto-terminated), your SSH key. Security list: port 22 only.
-3. If you hit *"Out of host capacity"*: switch Availability Domain, drop to 1 OCPU temporarily, or run [oci-arm-catcher](https://github.com/alexpua/oci-arm-catcher) to auto-grab the next free slot.
 
-### 2. Bootstrap
+Always Free `e2-micro` is **one instance**, only in `us-central1`, `us-west1`, or `us-east1`. A billing account is still required.
+
+Console: Compute Engine → Create instance — name `feedbridge`, region `us-central1`, zone `us-central1-a`, machine **e2-micro**, Ubuntu 24.04 LTS **amd64**, 20–30 GB standard disk, **HTTP/HTTPS off**. Firewall: SSH (`tcp:22`) only.
+
+Or from your laptop (gcloud SDK, project already selected):
+
 ```bash
-scp -r deploy ubuntu@<IP>:~            # or git clone the repo on the VM
-ssh ubuntu@<IP>
-cd ~/deploy && sudo ./setup-server.sh  # packages, DB+user creation prompts, redis password, ufw
+./deploy/gcp/create-vm.sh
 ```
-Copy envs into place:
+
+### 2. Bootstrap (on the VM)
+
+```bash
+# from your laptop
+gcloud compute ssh feedbridge --zone=us-central1-a
+# or: ssh YOU@EXTERNAL_IP
+
+# copy the deploy/ tree once
+# from laptop:  gcloud compute scp --recurse deploy feedbridge:~/deploy --zone=us-central1-a
+
+cd ~/deploy && sudo ./setup-server.sh
+```
+
+The script installs Postgres + Redis, creates user `feedbridge`, tightens memory for 1 GB, enables UFW (SSH only), and prints `REDIS_PASSWORD`. Then:
+
 ```bash
 sudo cp ~/deploy/env/api.env.example /etc/feedbridge/api.env
 sudo cp ~/deploy/env/bot.env.example /etc/feedbridge/bot.env
-sudo chmod 600 /etc/feedbridge/*.env && sudoedit each   # fill secrets; REDIS_PASSWORD printed by setup
+sudo chmod 600 /etc/feedbridge/*.env
+sudoedit /etc/feedbridge/api.env /etc/feedbridge/bot.env
 ```
 
-### 3. Ship binaries
-```bash
-# from your machine, repo root:
-API_HOST=... bot deploy targets:
-make -C API deploy HOST=ubuntu@<IP>
-make -C bot deploy HOST=ubuntu@<IP>
-```
+Fill `DB_PASSWORD`, `REDIS_PASSWORD`, and `TELEGRAM_BOT_TOKEN`. Keep `WORKER_COUNT=3` and `LISTEN_ADDR=127.0.0.1:50051`.
 
-### 4. Services + data migration
 ```bash
 sudo cp ~/deploy/feedbridge-*.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable --now feedbridge-api feedbridge-bot
-journalctl -u feedbridge-api -f          # verify
+sudo systemctl daemon-reload
+```
 
-# optional: migrate existing local data (subscriptions + detection cache)
+### 3. Ship binaries (from your laptop)
+
+```bash
+# repo root; HOST is the SSH user@external-ip of the VM
+make -C API deploy HOST=YOU@EXTERNAL_IP
+make -C bot deploy HOST=YOU@EXTERNAL_IP
+```
+
+### 4. Start + optional data migration
+
+```bash
+sudo systemctl enable --now feedbridge-api feedbridge-bot
+sudo systemctl status feedbridge-api feedbridge-bot
+journalctl -u feedbridge-api -u feedbridge-bot -f
+```
+
+Confirm gRPC is loopback-only: `ss -lntp | grep 50051` should show `127.0.0.1:50051`.
+
+```bash
+# optional: copy existing local subscriptions + detection cache
 pg_dump -U deus -h localhost -d feedbridge -t subscriptions -t link_repositories | \
-  ssh ubuntu@<IP> 'sudo -u postgres psql -d feedbridge'
+  ssh YOU@EXTERNAL_IP 'sudo -u postgres psql -d feedbridge'
 ```
 
 ### 5. Ops
+
 - Backups: install `deploy/backup-db.sh` as root cron (`0 4 * * *`), keeps 7 dumps.
-- Redeploys after changes: same `make deploy` one-liners (Restart=always units).
-- Gotchas: region is permanent; ARM capacity may require retries; consider upgrading to Pay-As-You-Go (still $0 within limits) to remove idle-reclaim risk; never open 50051/5432/6379 publicly.
+- Redeploy: same `make -C API deploy` / `make -C bot deploy` (units `Restart=always`).
+- Watch RAM after the first feeds land: `free -h` and `ps aux --sort=-%mem`. If you sit near 1 GB, leave `WORKER_COUNT=3` or move to a paid `e2-small`.
+- Never open `50051`, `5432`, or `6379` on the GCP firewall or UFW.
 
-## Docker (optional)
+## Docker (optional, local/dev only)
 
-Both modules compile to fully static binaries, so containerization stays optional:
+Not for the free-tier VM. Local full stack:
 
 ```bash
-docker build -f API/Dockerfile . && docker build -f bot/Dockerfile .
-docker compose -f docker-compose.example.yml up -d    # full parity stack incl. pg+redis
+docker compose -f docker-compose.example.yml up -d
 ```
 
-Caveat: both modules use local `replace` directives pointing at the sibling `rss_detector` checkout, which lives outside this repo. Container builds therefore need that source inside the build context (copy it in, or vendor/publish `rss_detector` — a good future cleanup). The systemd path has no such requirement.
+Set `LISTEN_ADDR=:50051` in the API container so gRPC is reachable from the bot service (already in the example file). Both modules `replace` a sibling `rss_detector` checkout outside this repo, so image builds need that source in the build context. The systemd path does not.
 

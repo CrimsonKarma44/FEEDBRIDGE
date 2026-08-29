@@ -1,5 +1,5 @@
-# OPTIONAL full-stack parity stack (dev/staging). Production on OCI uses
-# systemd + native Postgres/Redis per deploy/README section instead.
+# OPTIONAL full-stack parity stack (dev/staging). Production on GCE uses
+# systemd + native Postgres/Redis per the README Deployment section.
 #
 # Build contexts expect the rss_detector source inside the repo root (see
 # Dockerfile comments) — copy it in before `docker compose build`:
@@ -36,6 +36,7 @@ services:
       context: .
       dockerfile: API/Dockerfile
     environment:
+      LISTEN_ADDR: ":50051"
       DB_HOST: postgres
       DB_USER: deus
       DB_PASSWORD: change-me-strong

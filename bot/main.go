@@ -83,6 +83,7 @@ func main() {
 	}
 
 	wp := model.NewWorkerPool(model.WorkerCount())
+	log.Printf("worker pool size %d", model.WorkerCount())
 	wp.Start(ctx)
 
 	scheduler := model.NewTaskScheduler(wp.TaskQueue, st, func(sub *store.Subscription) *model.Task {
