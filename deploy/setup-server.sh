@@ -15,7 +15,9 @@ apt-get install -y postgresql redis-server ufw openssl curl
 
 echo "==> service user"
 if ! id -u feedbridge &>/dev/null; then
-    useradd --system --group --home /opt/feedbridge --shell /usr/sbin/nologin feedbridge
+    # Ubuntu's useradd has no --group (that is Debian adduser). -U makes a
+    # matching group; -d sets the home path without requiring it to exist yet.
+    useradd --system -U -d /opt/feedbridge -s /usr/sbin/nologin feedbridge
 fi
 install -d -m 0750 -o feedbridge -g feedbridge /opt/feedbridge
 install -d -m 0700 -o root -g root /etc/feedbridge
