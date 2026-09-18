@@ -12,11 +12,16 @@ import (
 	"github.com/mmcdole/gofeed"
 )
 
-const fetchTimeout = 20 * time.Second
+const (
+	fetchTimeout  = 20 * time.Second
+	maxFeedBody   = 4 << 20
+	FeedUserAgent = "FEEDBRIDGE/1.0 (+https://github.com/CrimsonKarma44/FEEDBRIDGE)"
+)
 
-const FeedUserAgent = "FEEDBRIDGE/1.0 (+https://github.com/CrimsonKarma44/FEEDBRIDGE)"
-
-var feedHTTPClient = &http.Client{Timeout: fetchTimeout}
+var (
+	ErrFeedTooLarge = errors.New("feed body exceeds size limit")
+	feedHTTPClient  = NewSafeHTTPClient(fetchTimeout)
+)
 
 func RetryableFeedError(err error) bool {
 	if err == nil {
@@ -71,10 +76,13 @@ func FeedParser(ctx context.Context, url string) (*gofeed.Feed, error) {
 			return nil, gofeed.HTTPError{StatusCode: resp.StatusCode, Status: resp.Status + ": " + string(body)}
 		}
 
-		body, err := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(io.LimitReader(resp.Body, maxFeedBody+1))
 		_ = resp.Body.Close()
 		if err != nil {
 			return nil, err
+		}
+		if len(body) > maxFeedBody {
+			return nil, fmt.Errorf("%w (%d bytes)", ErrFeedTooLarge, len(body))
 		}
 
 		fp := gofeed.NewParser()

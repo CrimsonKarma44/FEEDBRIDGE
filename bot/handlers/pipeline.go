@@ -92,23 +92,13 @@ func FetchTask(bot *tele.Bot, api *grpcclient.Client, st *store.Store, sub *stor
 				return err
 			}
 
-			var fresh []*feedpb.GetFeedsResponse_Feed
-			var newest time.Time
-			for _, item := range items {
-				ts := publishedAt(item)
-				if ts.IsZero() || !ts.After(sub.LastSeenPublished) {
-					continue
-				}
-				fresh = append(fresh, item)
-				if ts.After(newest) {
-					newest = ts
-				}
-			}
+			fresh, newest := freshItems(items, sub.LastSeenPublished)
 			if len(fresh) == 0 {
 				return nil
 			}
 
 			delivered := 0
+			sent := fresh
 			if len(fresh) > digestThreshold {
 				if err := SendDigest(bot, sub.ChatID, fresh); err == nil {
 					delivered = len(fresh)
@@ -116,7 +106,10 @@ func FetchTask(bot *tele.Bot, api *grpcclient.Client, st *store.Store, sub *stor
 					log.Printf("digest to chat %d failed: %v", sub.ChatID, err)
 				}
 			} else {
-				delivered = SendItems(bot, sub.ChatID, fresh, sendGap)
+				// Oldest-first so a mid-batch failure advances the cursor only
+				// past items that actually sent; newer unsent items retry.
+				sent = oldestFirst(fresh)
+				delivered = SendItems(bot, sub.ChatID, sent, sendGap)
 			}
 
 			if delivered == 0 {
@@ -124,10 +117,7 @@ func FetchTask(bot *tele.Bot, api *grpcclient.Client, st *store.Store, sub *stor
 				return nil
 			}
 
-			cursor := newest
-			if delivered < len(fresh) && publishedAt(fresh[delivered-1]).After(time.Time{}) {
-				cursor = publishedAt(fresh[delivered-1])
-			}
+			cursor := cursorAfterPartial(sent, delivered, newest)
 			if err := st.UpdateCursor(sub.ID, cursor); err != nil {
 				return err
 			}
@@ -142,4 +132,45 @@ func publishedAt(item *feedpb.GetFeedsResponse_Feed) time.Time {
 		return time.Time{}
 	}
 	return item.GetPublishedAt().AsTime()
+}
+
+func freshItems(items []*feedpb.GetFeedsResponse_Feed, cursor time.Time) ([]*feedpb.GetFeedsResponse_Feed, time.Time) {
+	var fresh []*feedpb.GetFeedsResponse_Feed
+	var newest time.Time
+	for _, item := range items {
+		ts := publishedAt(item)
+		if ts.IsZero() || !ts.After(cursor) {
+			continue
+		}
+		fresh = append(fresh, item)
+		if ts.After(newest) {
+			newest = ts
+		}
+	}
+	return fresh, newest
+}
+
+func oldestFirst(items []*feedpb.GetFeedsResponse_Feed) []*feedpb.GetFeedsResponse_Feed {
+	out := make([]*feedpb.GetFeedsResponse_Feed, len(items))
+	for i, item := range items {
+		out[len(items)-1-i] = item
+	}
+	return out
+}
+
+// cursorAfterPartial returns the timestamp to persist after delivering
+// delivered items from sent (oldest-first for individual messages).
+// Full success uses newest so equal-timestamp siblings are not retried.
+func cursorAfterPartial(sent []*feedpb.GetFeedsResponse_Feed, delivered int, newest time.Time) time.Time {
+	if delivered >= len(sent) {
+		return newest
+	}
+	if delivered <= 0 {
+		return time.Time{}
+	}
+	ts := publishedAt(sent[delivered-1])
+	if ts.IsZero() {
+		return newest
+	}
+	return ts
 }

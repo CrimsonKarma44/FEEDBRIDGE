@@ -6,6 +6,9 @@ import (
 	"log"
 	"time"
 
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/config"
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/models"
+	rssdetector "github.com/CrimsonKarma44/rss_detector"
 	"github.com/mmcdole/gofeed"
 	"golang.org/x/sync/singleflight"
 )
@@ -15,11 +18,19 @@ const (
 	linksTTL    = 24 * time.Hour
 	negativeTTL = 5 * time.Minute
 
-	itemKeyPrefix     = "items:"
-	negativeKeyPrefix = "notfound:"
-	fetchFlightKey    = "fetch:"
-	detectFlightKey   = "detect:"
+	itemKeyPrefix      = "items:"
+	negativeKeyPrefix  = "notfound:"
+	orderedLinksPrefix = "feedlinks:"
+	fetchFlightKey     = "fetch:"
+	detectFlightKey    = "detect:"
 )
+
+// cachedFeedLink is the JSON shape stored under feedlinks:<inputURL>.
+// A list (not a Redis hash) so detector rank is preserved across cache hits.
+type cachedFeedLink struct {
+	URL  string          `json:"url"`
+	Type models.FeedType `json:"type"`
+}
 
 var flightGroup singleflight.Group
 
@@ -112,4 +123,63 @@ func (h *FeedHandler) markNegative(ctx context.Context, url string) {
 	if ok {
 		log.Printf("negative-cached %s for %s", url, negativeTTL)
 	}
+}
+
+func orderedLinksKey(url string) string {
+	return orderedLinksPrefix + url
+}
+
+func feedLinksToCached(links []rssdetector.FeedLink) []cachedFeedLink {
+	out := make([]cachedFeedLink, len(links))
+	for i, l := range links {
+		out[i] = cachedFeedLink{URL: l.URL, Type: models.FeedType(l.Type)}
+	}
+	return out
+}
+
+func cachedToFeedLinks(cached []cachedFeedLink) []rssdetector.FeedLink {
+	out := make([]rssdetector.FeedLink, 0, len(cached))
+	for _, c := range cached {
+		if c.URL == "" {
+			continue
+		}
+		out = append(out, rssdetector.FeedLink{URL: c.URL, Type: rssdetector.FeedType(c.Type)})
+	}
+	return out
+}
+
+func linkMapFrom(links []rssdetector.FeedLink) map[string]models.FeedType {
+	m := make(map[string]models.FeedType, len(links))
+	for _, l := range links {
+		m[l.URL] = models.FeedType(l.Type)
+	}
+	return m
+}
+
+func loadCachedFeedLinks(ctx context.Context, r *config.RedisDB, url string) ([]rssdetector.FeedLink, bool) {
+	if r == nil {
+		return nil, false
+	}
+	var ordered []cachedFeedLink
+	if err := r.GetJSON(ctx, orderedLinksKey(url), &ordered); err == nil {
+		if links := cachedToFeedLinks(ordered); len(links) > 0 {
+			return links, true
+		}
+	}
+	hash, err := r.HGetAll(ctx, url)
+	if err != nil || len(hash) == 0 {
+		return nil, false
+	}
+	m := make(map[string]models.FeedType, len(hash))
+	for k, v := range hash {
+		m[k] = models.FeedType(v)
+	}
+	return linksFromCached(m), true
+}
+
+func storeCachedFeedLinks(ctx context.Context, r *config.RedisDB, url string, links []rssdetector.FeedLink) error {
+	if r == nil || len(links) == 0 {
+		return nil
+	}
+	return r.SetJSON(ctx, orderedLinksKey(url), linksTTL, feedLinksToCached(links))
 }

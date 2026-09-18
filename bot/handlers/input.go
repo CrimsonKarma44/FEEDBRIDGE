@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strings"
@@ -44,8 +45,26 @@ func NormalizeURL(raw string) (string, error) {
 	if host == "" || !hostRe.MatchString(host) {
 		return "", fmt.Errorf("it is missing a valid host")
 	}
+	if isLocalOrPrivateHost(host) {
+		return "", fmt.Errorf("it points at a private or local address")
+	}
 
 	return strings.TrimRight(trimmed, "/"), nil
+}
+
+func isLocalOrPrivateHost(host string) bool {
+	h := strings.ToLower(strings.TrimSuffix(host, "."))
+	if h == "localhost" || h == "metadata.google.internal" {
+		return true
+	}
+	if strings.HasSuffix(h, ".internal") || strings.HasSuffix(h, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()
 }
 
 // BadURLHelp renders friendly feedback for a rejected URL.

@@ -57,13 +57,6 @@ func (h *FeedHandler) AddFeed(c tele.Context) error {
 		return c.Send(BadURLHelp(err))
 	}
 
-	exists, err := h.Store.Exists(c.Chat().ID, target)
-	if err != nil {
-		log.Println("exists check failed:", err)
-	} else if exists {
-		return c.Send("You're already subscribed to this feed.\nManage it with /listfeed.")
-	}
-
 	links, err := h.API.SetUrl(context.Background(), target)
 	if err != nil {
 		log.Printf("SetUrl(%s) failed: %v", target, err)
@@ -73,14 +66,14 @@ func (h *FeedHandler) AddFeed(c tele.Context) error {
 		return c.Send("No feeds were found for that URL.")
 	}
 
-	feedURL := links[0]
-
-	if exists, err := h.Store.Exists(c.Chat().ID, feedURL); err != nil {
+	if stored, found, err := h.subscribedURL(c.Chat().ID, target, links); err != nil {
 		log.Println("exists check failed:", err)
-	} else if exists {
-		log.Printf("input %s resolves to already-subscribed feed %s", target, feedURL)
+	} else if found {
+		log.Printf("input %s resolves to already-subscribed feed %s", target, stored)
 		return c.Send("You're already subscribed to this feed.\nManage it with /listfeed.")
 	}
+
+	feedURL := links[0]
 
 	sub, created, err := h.Store.Add(c.Chat().ID, feedURL, store.DefaultInterval)
 	if err != nil {
@@ -323,7 +316,16 @@ func (h *FeedHandler) urlCommand(c tele.Context, cmd string, fn func(chatID int6
 		return c.Send(BadURLHelp(err))
 	}
 
-	if err := fn(c.Chat().ID, target); err != nil {
+	stored, err := h.resolveStoredURL(c.Chat().ID, target)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Send("You are not subscribed to that URL.\nSee /listfeed for what you follow.")
+		}
+		log.Printf("%s lookup %s failed: %v", cmd, target, err)
+		return c.Send("Could not look that URL up. " + grpcclient.FriendlyError(err))
+	}
+
+	if err := fn(c.Chat().ID, stored); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Send("You are not subscribed to that URL.\nSee /listfeed for what you follow.")
 		}
@@ -331,6 +333,74 @@ func (h *FeedHandler) urlCommand(c tele.Context, cmd string, fn func(chatID int6
 		return c.Send("Something went wrong, try again.")
 	}
 	return c.Send(success + "\n" + esc(target))
+}
+
+func candidateURLs(input string, links []string) []string {
+	out := make([]string, 0, 1+len(links))
+	seen := make(map[string]struct{}, 1+len(links))
+	add := func(u string) {
+		if u == "" {
+			return
+		}
+		if _, ok := seen[u]; ok {
+			return
+		}
+		seen[u] = struct{}{}
+		out = append(out, u)
+	}
+	add(input)
+	for _, l := range links {
+		add(l)
+	}
+	return out
+}
+
+func firstMatching(candidates, existing []string) string {
+	have := make(map[string]struct{}, len(existing))
+	for _, e := range existing {
+		have[e] = struct{}{}
+	}
+	for _, c := range candidates {
+		if _, ok := have[c]; ok {
+			return c
+		}
+	}
+	return ""
+}
+
+func (h *FeedHandler) subscribedURL(chatID int64, input string, links []string) (string, bool, error) {
+	for _, u := range candidateURLs(input, links) {
+		ok, err := h.Store.Exists(chatID, u)
+		if err != nil {
+			return "", false, err
+		}
+		if ok {
+			return u, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+func (h *FeedHandler) resolveStoredURL(chatID int64, target string) (string, error) {
+	ok, err := h.Store.Exists(chatID, target)
+	if err != nil {
+		return "", err
+	}
+	if ok {
+		return target, nil
+	}
+	links, err := h.API.SetUrl(context.Background(), target)
+	if err != nil {
+		return "", err
+	}
+	stored, found, err := h.subscribedURL(chatID, target, links)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", gorm.ErrRecordNotFound
+	}
+	return stored, nil
 }
 
 func (h *FeedHandler) RemoveFeed(c tele.Context) error {

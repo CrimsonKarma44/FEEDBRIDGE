@@ -22,7 +22,20 @@ func TestNormalizeURL(t *testing.T) {
 		{"rejects javascript", "javascript:alert(1)", "", true},
 		{"missing host", "https://", "", true},
 		{"unparseable control char", "https://exa\nmple.com", "", true},
-		{"port kept", "localhost:50051/feed", "https://localhost:50051/feed", false},
+		{"rejects localhost", "localhost:50051/feed", "", true},
+		{"rejects LOCALHOST", "http://LOCALHOST/feed", "", true},
+		{"rejects foo.localhost", "http://foo.localhost/feed", "", true},
+		{"rejects loopback", "http://127.0.0.1/feed", "", true},
+		{"rejects loopback no scheme", "127.0.0.1/feed", "", true},
+		{"rejects unspecified", "http://0.0.0.0/", "", true},
+		{"rejects rfc1918 10", "http://10.0.0.5/rss", "", true},
+		{"rejects rfc1918 192.168", "http://192.168.1.9/rss", "", true},
+		{"rejects rfc1918 172.16", "http://172.16.0.1/rss", "", true},
+		{"rejects rfc1918 172.31", "http://172.31.255.255/rss", "", true},
+		{"allows 172.15 (not rfc1918)", "http://172.15.0.1/rss", "http://172.15.0.1/rss", false},
+		{"rejects metadata ip", "http://169.254.169.254/", "", true},
+		{"rejects metadata host", "http://metadata.google.internal/", "", true},
+		{"rejects .internal", "http://redis.internal/feed", "", true},
 	}
 
 	for _, tc := range cases {

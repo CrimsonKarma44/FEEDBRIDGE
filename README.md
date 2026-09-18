@@ -49,6 +49,7 @@ cp bot/.env.example bot/.env      # fill in TELEGRAM_BOT_TOKEN + DB values
 | `TELEGRAM_BOT_TOKEN` | bot | Bot token from BotFather |
 | `WORKER_COUNT` | bot | Fetch worker pool size (default 10) |
 | `YOUTUBE_API_KEY` | API | Optional; prefers Data API v3 in the YouTube resolver |
+| `FEEDBRIDGE_ALLOW_PRIVATE_FETCH` | API | Set to `1` to allow fetching LAN/loopback feed URLs (off by default) |
 
 > Note: `.env` files are gitignored — never commit them.
 

@@ -26,6 +26,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/utility"
 )
 
 // ---- Public types -----------------------------------------------------------
@@ -97,7 +99,7 @@ func NewResolver(apiKey string) *Resolver {
 		apiKey = os.Getenv("YOUTUBE_API_KEY")
 	}
 	return &Resolver{
-		HTTP:   &http.Client{Timeout: 20 * time.Second},
+		HTTP:   utility.NewSafeHTTPClient(20 * time.Second),
 		APIKey: apiKey,
 		UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
 			"(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",

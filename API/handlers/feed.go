@@ -24,9 +24,8 @@ import (
 )
 
 const (
-	feedTimeout    = 30 * time.Second
-	fetchWorkers   = 5
-	redisKeyPrefix = "feed:"
+	feedTimeout  = 30 * time.Second
+	fetchWorkers = 5
 )
 
 type FeedHandler struct {
@@ -84,11 +83,8 @@ func (h *FeedHandler) resolveLinks(ctx context.Context, url string) (map[string]
 		return nil, status.Errorf(codes.NotFound, "no feeds found for %s (retry later)", url)
 	}
 
-	cached, err := h.RedisClient.HGetAll(ctx, url)
-	if err != nil {
-		log.Println("redis lookup failed:", err)
-	} else if len(cached) > 0 {
-		return utility.ToFeedTypeMap(cached), nil
+	if cached, ok := loadCachedFeedLinks(ctx, h.RedisClient, url); ok {
+		return linkMapFrom(cached), nil
 	}
 
 	linkRepo, err := h.LinkService.GetFeedLink(url)
@@ -115,15 +111,12 @@ func (h *FeedHandler) resolveLinks(ctx context.Context, url string) (map[string]
 			return nil, status.Errorf(codes.NotFound, "no feeds found for %s", url)
 		}
 
-		linkMap := make(map[string]models.FeedType, len(detected))
-		for _, link := range detected {
-			linkMap[link.URL] = models.FeedType(link.Type)
-		}
+		linkMap := linkMapFrom(detected)
 
 		if aerr := h.LinkService.AddLink(models.LinkRepository{Url: url, FeedLinks: linkMap}); aerr != nil {
 			log.Println("persist links failed:", aerr)
 		}
-		if serr := h.RedisClient.HSet(ctx, redisKeyPrefix+url, utility.ToStringMap(linkMap), linksTTL); serr != nil {
+		if serr := storeCachedFeedLinks(ctx, h.RedisClient, url, detected); serr != nil {
 			log.Println("cache links failed:", serr)
 		}
 
@@ -134,7 +127,7 @@ func (h *FeedHandler) resolveLinks(ctx context.Context, url string) (map[string]
 	if linkMap == nil {
 		linkMap = make(map[string]models.FeedType)
 	}
-	if serr := h.RedisClient.HSet(ctx, redisKeyPrefix+url, utility.ToStringMap(linkMap), linksTTL); serr != nil {
+	if serr := storeCachedFeedLinks(ctx, h.RedisClient, url, linksFromCached(linkMap)); serr != nil {
 		log.Println("cache links failed:", serr)
 	}
 	return linkMap, nil

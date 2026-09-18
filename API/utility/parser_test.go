@@ -5,12 +5,19 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/mmcdole/gofeed"
 )
+
+func TestMain(m *testing.M) {
+	feedHTTPClient = &http.Client{Timeout: fetchTimeout}
+	os.Exit(m.Run())
+}
 
 func TestRetryableFeedError(t *testing.T) {
 	if RetryableFeedError(errors.New("nope")) {
@@ -62,5 +69,26 @@ func TestFeedParserRetriesThenSucceeds(t *testing.T) {
 	}
 	if hits.Load() < 2 {
 		t.Fatalf("hits=%d, want retry", hits.Load())
+	}
+}
+
+func TestFeedParser_RejectsOversizedBody(t *testing.T) {
+	var hits atomic.Int32
+	payload := strings.Repeat("x", maxFeedBody+1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = w.Write([]byte(payload))
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := FeedParser(ctx, srv.URL)
+	if !errors.Is(err, ErrFeedTooLarge) {
+		t.Fatalf("err = %v, want ErrFeedTooLarge", err)
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("hits=%d, oversized body must not retry", hits.Load())
 	}
 }

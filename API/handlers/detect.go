@@ -5,19 +5,35 @@ import (
 	"errors"
 	"log"
 	"net/url"
+	"sort"
+	"time"
 
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/models"
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/utility"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/youtube"
 	rssdetector "github.com/CrimsonKarma44/rss_detector"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// linksFromCached converts a cached url->type map back into feed links.
+var detector = rssdetector.New(
+	rssdetector.WithHTTPClient(utility.NewSafeHTTPClient(30*time.Second)),
+	rssdetector.WithUserAgent(utility.FeedUserAgent),
+)
+
+// linksFromCached converts a url->type map back into feed links.
+// Map iteration is unordered; URLs are sorted so hash/DB fallbacks are stable.
 func linksFromCached(m map[string]models.FeedType) []rssdetector.FeedLink {
-	out := make([]rssdetector.FeedLink, 0, len(m))
-	for u, t := range m {
-		out = append(out, rssdetector.FeedLink{URL: u, Type: rssdetector.FeedType(t)})
+	urls := make([]string, 0, len(m))
+	for u := range m {
+		if u != "" {
+			urls = append(urls, u)
+		}
+	}
+	sort.Strings(urls)
+	out := make([]rssdetector.FeedLink, 0, len(urls))
+	for _, u := range urls {
+		out = append(out, rssdetector.FeedLink{URL: u, Type: rssdetector.FeedType(m[u])})
 	}
 	return out
 }
@@ -52,7 +68,7 @@ func resolveFeeds(ctx context.Context, yt *youtube.Resolver, rawURL string) ([]r
 // hammering a throttling server makes things worse, and stripping cannot fix
 // a malformed URL. The original error wins when the retry fails too.
 func detectWithFallback(ctx context.Context, rawURL string) ([]rssdetector.FeedLink, error) {
-	links, err := rssdetector.Detect(ctx, rawURL)
+	links, err := detector.Detect(ctx, rawURL)
 	if err == nil || !fallbackable(err) {
 		return links, err
 	}
@@ -63,7 +79,7 @@ func detectWithFallback(ctx context.Context, rawURL string) ([]rssdetector.FeedL
 	}
 
 	log.Printf("detect failed for %s (%v); retrying site root %s", rawURL, err, root)
-	retryLinks, retryErr := rssdetector.Detect(ctx, root)
+	retryLinks, retryErr := detector.Detect(ctx, root)
 	if retryErr == nil && len(retryLinks) > 0 {
 		return retryLinks, nil
 	}

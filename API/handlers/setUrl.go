@@ -10,7 +10,6 @@ import (
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/models"
 	pb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/setUrl"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
-	"github.com/CrimsonKarma44/FEEDBRIDGE/API/utility"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/youtube"
 	rssdetector "github.com/CrimsonKarma44/rss_detector"
 	"google.golang.org/grpc/codes"
@@ -35,10 +34,9 @@ func (h *SetUrlHandler) SetUrl(ctx context.Context, req *pb.SetUrlRequest) (*pb.
 	defer cancel()
 
 	v, err, _ := flightGroup.Do(detectFlightKey+req.GetUrl(), func() (any, error) {
-		// Cache-first: known inputs resolve without touching the upstream site.
-		if cached, cerr := h.RedisClient.HGetAll(ctx, req.GetUrl()); cerr == nil && len(cached) > 0 {
+		if cached, ok := loadCachedFeedLinks(ctx, h.RedisClient, req.GetUrl()); ok {
 			log.Printf("cache hit for %s, skipping detection", req.GetUrl())
-			return linksFromCached(utility.ToFeedTypeMap(cached)), nil
+			return cached, nil
 		}
 		return resolveFeeds(ctx, h.YouTube, req.GetUrl())
 	})
@@ -63,7 +61,7 @@ func (h *SetUrlHandler) SetUrl(ctx context.Context, req *pb.SetUrlRequest) (*pb.
 		log.Println("persist links failed:", aerr)
 	}
 
-	if serr := h.RedisClient.HSet(ctx, redisKeyPrefix+req.GetUrl(), utility.ToStringMap(linkMap), linksTTL); serr != nil {
+	if serr := storeCachedFeedLinks(ctx, h.RedisClient, req.GetUrl(), links); serr != nil {
 		return nil, status.Errorf(codes.Internal,
 			"failed to cache feed links for %s: %v", req.GetUrl(), serr)
 	}
