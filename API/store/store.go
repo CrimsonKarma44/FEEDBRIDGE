@@ -14,6 +14,12 @@ func New(db *gorm.DB) (*Store, error) {
 	if err := db.AutoMigrate(&Subscription{}); err != nil {
 		return nil, err
 	}
+	if err := BackfillDestinations(db); err != nil {
+		return nil, err
+	}
+	if err := ensureDestIndex(db); err != nil {
+		return nil, err
+	}
 	return &Store{db: db}, nil
 }
 
@@ -177,6 +183,26 @@ func (s *Store) MarkChecked(ids []uint, now time.Time) error {
 	}
 	return s.db.Model(&Subscription{}).Where("id IN ?", ids).
 		Updates(map[string]any{"last_checked_at": now}).Error
+}
+
+// MarkDue postpones NextCheckAt so a claimed due row is not listed again
+// until its interval elapses (same as the old bot MarkChecked-before-enqueue).
+func (s *Store) MarkDue(subs []Subscription, now time.Time) error {
+	now = now.UTC()
+	for i := range subs {
+		sub := subs[i]
+		interval := time.Duration(sub.IntervalSeconds) * time.Second
+		if interval <= 0 {
+			interval = DefaultInterval
+		}
+		if err := s.db.Model(&Subscription{}).Where("id = ?", sub.ID).Updates(map[string]any{
+			"last_checked_at": now,
+			"next_check_at":   now.Add(interval),
+		}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) UpdateCursor(id uint, publishedAt time.Time) error {

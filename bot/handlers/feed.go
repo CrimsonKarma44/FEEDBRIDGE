@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"html"
 	"log"
@@ -12,24 +11,27 @@ import (
 	"time"
 
 	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/Feed"
+	subpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/subscription"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/grpcclient"
-	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/store"
 	tele "gopkg.in/telebot.v4"
-	"gorm.io/gorm"
 )
 
-const previewCount = 3
+const (
+	previewCount = 3
+	minInterval  = 5 * time.Minute
+	maxInterval  = 24 * time.Hour
+)
 
 type FeedHandler struct {
-	Store *store.Store
-	API   *grpcclient.Client
+	API *grpcclient.Client
 }
 
-// esc makes user-derived text safe under Telegram HTML parse mode.
+func telegramDest(chatID int64) (platform, externalID string) {
+	return "telegram", strconv.FormatInt(chatID, 10)
+}
+
 func esc(s string) string { return html.EscapeString(s) }
 
-// adminGate returns true when the action must be blocked, responding to the
-// user appropriately. Never returns an error so OnError stays quiet.
 func adminGate(c tele.Context) bool {
 	if IsAdmin(c) {
 		return false
@@ -57,36 +59,20 @@ func (h *FeedHandler) AddFeed(c tele.Context) error {
 		return c.Send(BadURLHelp(err))
 	}
 
-	links, err := h.API.SetUrl(context.Background(), target)
+	platform, ext := telegramDest(c.Chat().ID)
+	res, err := h.API.Subscribe(context.Background(), platform, ext, target)
 	if err != nil {
-		log.Printf("SetUrl(%s) failed: %v", target, err)
+		log.Printf("Subscribe(%s) failed: %v", target, err)
 		return c.Send("Could not add that URL. " + grpcclient.FriendlyError(err))
 	}
-	if len(links) == 0 {
-		return c.Send("No feeds were found for that URL.")
-	}
-
-	if stored, found, err := h.subscribedURL(c.Chat().ID, target, links); err != nil {
-		log.Println("exists check failed:", err)
-	} else if found {
-		log.Printf("input %s resolves to already-subscribed feed %s", target, stored)
+	if !res.GetCreated() {
 		return c.Send("You're already subscribed to this feed.\nManage it with /listfeed.")
 	}
 
-	feedURL := links[0]
-
-	sub, created, err := h.Store.Add(c.Chat().ID, feedURL, store.DefaultInterval)
-	if err != nil {
-		log.Println("subscribe failed:", err)
-		return c.Send(fmt.Sprintf("Detected %d feed(s), but saving the subscription failed.", len(links)))
-	}
-	if !created {
-		return c.Send("You're already subscribed to this feed.\nManage it with /listfeed.")
-	}
-
+	feedURL := res.GetSubscription().GetUrl()
 	top, ferr := h.fetchLatest(feedURL)
 
-	confirm := fmt.Sprintf("Added successfully - %d feed(s) detected.", len(links))
+	confirm := "Added successfully."
 	switch {
 	case ferr != nil:
 		log.Printf("latest-items preview failed for %s: %v", target, ferr)
@@ -104,19 +90,16 @@ func (h *FeedHandler) AddFeed(c tele.Context) error {
 		return nil
 	}
 
-	SendItems(c.Bot(), sub.ChatID, top, sendGap)
+	SendItems(c.Bot(), c.Chat().ID, top, sendGap)
 
 	if ts := publishedAt(top[0]); !ts.IsZero() {
-		if uerr := h.Store.UpdateCursor(sub.ID, ts); uerr != nil {
+		if uerr := h.API.AckCursor(context.Background(), res.GetSubscription().GetId(), ts); uerr != nil {
 			log.Println("cursor update failed:", uerr)
-		} else {
-			sub.LastSeenPublished = ts
 		}
 	}
 	return nil
 }
 
-// fetchLatest returns the most recent items for a URL (newest first).
 func (h *FeedHandler) fetchLatest(url string) ([]*feedpb.GetFeedsResponse_Feed, error) {
 	items, err := h.API.GetFeed(context.Background(), url, time.Time{})
 	if err != nil {
@@ -129,7 +112,8 @@ func (h *FeedHandler) fetchLatest(url string) ([]*feedpb.GetFeedsResponse_Feed, 
 }
 
 func (h *FeedHandler) ListFeed(c tele.Context) error {
-	subs, err := h.Store.ListByChat(c.Chat().ID)
+	_, ext := telegramDest(c.Chat().ID)
+	subs, err := h.API.ListSubscriptions(context.Background(), "telegram", ext)
 	if err != nil {
 		log.Println("list failed:", err)
 		return c.Send("Could not load your feeds.")
@@ -140,18 +124,18 @@ func (h *FeedHandler) ListFeed(c tele.Context) error {
 	return renderSubscriptions(c, subs, false)
 }
 
-func renderSubscriptions(c tele.Context, subs []store.Subscription, edit bool) error {
+func renderSubscriptions(c tele.Context, subs []*subpb.Subscription, edit bool) error {
 	menu := &tele.ReplyMarkup{}
 	var rows []tele.Row
 	for _, sub := range subRange(subs) {
-		id := strconv.FormatUint(uint64(sub.ID), 10)
+		id := strconv.FormatUint(sub.GetId(), 10)
 
 		toggleText, toggleUnique := "Disable", "fd_off"
-		if !sub.Enabled {
+		if !sub.GetEnabled() {
 			toggleText, toggleUnique = "Enable", "fd_on"
 		}
 		rows = append(rows, menu.Row(
-			menu.Data(shortURL(sub.URL), "fd_view", id),
+			menu.Data(shortURL(sub.GetUrl()), "fd_view", id),
 			menu.Data(toggleText, toggleUnique, id),
 			menu.Data("Remove", "fd_rm", id),
 		))
@@ -165,7 +149,7 @@ func renderSubscriptions(c tele.Context, subs []store.Subscription, edit bool) e
 	return c.Send(text, &tele.SendOptions{ReplyMarkup: menu})
 }
 
-func subRange(subs []store.Subscription) []store.Subscription {
+func subRange(subs []*subpb.Subscription) []*subpb.Subscription {
 	const maxButtons = 90
 	if len(subs) > maxButtons {
 		return subs[:maxButtons]
@@ -190,7 +174,7 @@ func shortURL(raw string) string {
 	return strings.TrimSuffix(s, "/")
 }
 
-func callbackID(c tele.Context) (uint, bool) {
+func callbackID(c tele.Context) (uint64, bool) {
 	args := c.Args()
 	if len(args) == 0 {
 		return 0, false
@@ -199,14 +183,13 @@ func callbackID(c tele.Context) (uint, bool) {
 	if err != nil {
 		return 0, false
 	}
-	return uint(id), true
+	return id, true
 }
 
-// ownsSubscription guards callbacks: the subscription must belong to the chat
-// the button was pressed in. Always acknowledges the callback.
-func (h *FeedHandler) ownsSubscription(c tele.Context, id uint) (*store.Subscription, bool) {
-	sub, err := h.Store.Get(id)
-	if err != nil || sub.ChatID != c.Chat().ID {
+func (h *FeedHandler) ownsSubscription(c tele.Context, id uint64) (*subpb.Subscription, bool) {
+	sub, err := h.API.GetSubscription(context.Background(), id)
+	_, ext := telegramDest(c.Chat().ID)
+	if err != nil || sub.GetPlatform() != "telegram" || sub.GetExternalId() != ext {
 		c.Respond(&tele.CallbackResponse{Text: "This button no longer works."})
 		return nil, false
 	}
@@ -231,9 +214,9 @@ func (h *FeedHandler) OnViewBtn(c tele.Context) error {
 		return nil
 	}
 
-	status := fmt.Sprintf("%s\nStatus: %s", esc(sub.URL), map[bool]string{true: "enabled", false: "disabled"}[sub.Enabled])
-	if sub.Enabled {
-		status += fmt.Sprintf("\nChecked every %d min", sub.IntervalSeconds/60)
+	status := fmt.Sprintf("%s\nStatus: %s", esc(sub.GetUrl()), map[bool]string{true: "enabled", false: "disabled"}[sub.GetEnabled()])
+	if sub.GetEnabled() {
+		status += fmt.Sprintf("\nChecked every %d min", sub.GetIntervalSeconds()/60)
 	}
 	c.Respond()
 	return c.EditOrSend(status)
@@ -254,14 +237,15 @@ func (h *FeedHandler) toggleBtn(c tele.Context, enable bool) error {
 	if _, ok := h.ownsSubscription(c, id); !ok {
 		return nil
 	}
-	if err := h.Store.SetEnabled(id, enable); err != nil {
+	if err := h.API.SetEnabled(context.Background(), id, enable); err != nil {
 		log.Println("toggle failed:", err)
 		respondAlert(c, "Failed, try again")
 		return nil
 	}
 	c.Respond()
 
-	subs, err := h.Store.ListByChat(c.Chat().ID)
+	_, ext := telegramDest(c.Chat().ID)
+	subs, err := h.API.ListSubscriptions(context.Background(), "telegram", ext)
 	if err != nil {
 		return nil
 	}
@@ -277,34 +261,33 @@ func (h *FeedHandler) OnRemoveBtn(c tele.Context) error {
 		respondAlert(c, "Invalid button")
 		return nil
 	}
-	sub, ok := h.ownsSubscription(c, id)
-	if !ok {
+	if _, ok := h.ownsSubscription(c, id); !ok {
 		return nil
 	}
-	if err := h.Store.Remove(sub.ID); err != nil {
+	if err := h.API.Unsubscribe(context.Background(), id); err != nil {
 		log.Println("remove failed:", err)
 		respondAlert(c, "Failed, try again")
 		return nil
 	}
 	respondAlert(c, "Removed")
 
-	subs, lerr := h.Store.ListByChat(c.Chat().ID)
+	_, ext := telegramDest(c.Chat().ID)
+	subs, lerr := h.API.ListSubscriptions(context.Background(), "telegram", ext)
 	if lerr != nil || len(subs) == 0 {
 		return c.EditOrSend("Feed removed.")
 	}
 	return renderSubscriptions(c, subs, true)
 }
 
-// urlCommand backs /removefeed, /enablefeed and /disablefeed. With no argument
-// it shows the interactive list instead of a bare usage line.
-func (h *FeedHandler) urlCommand(c tele.Context, cmd string, fn func(chatID int64, target string) error, success string) error {
+func (h *FeedHandler) urlCommand(c tele.Context, cmd string, fn func(platform, ext, url string) error, success string) error {
 	if adminGate(c) {
 		return nil
 	}
 
 	raw := strings.TrimSpace(strings.Join(c.Args(), " "))
+	platform, ext := telegramDest(c.Chat().ID)
 	if raw == "" {
-		subs, lerr := h.Store.ListByChat(c.Chat().ID)
+		subs, lerr := h.API.ListSubscriptions(context.Background(), platform, ext)
 		if lerr != nil || len(subs) == 0 {
 			return c.Send("Usage: /" + cmd + " <url>\nYou have no subscriptions yet - add one with /addfeed <url>")
 		}
@@ -316,108 +299,37 @@ func (h *FeedHandler) urlCommand(c tele.Context, cmd string, fn func(chatID int6
 		return c.Send(BadURLHelp(err))
 	}
 
-	stored, err := h.resolveStoredURL(c.Chat().ID, target)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.Send("You are not subscribed to that URL.\nSee /listfeed for what you follow.")
-		}
-		log.Printf("%s lookup %s failed: %v", cmd, target, err)
-		return c.Send("Could not look that URL up. " + grpcclient.FriendlyError(err))
-	}
-
-	if err := fn(c.Chat().ID, stored); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := fn(platform, ext, target); err != nil {
+		if grpcclient.IsNotFound(err) {
 			return c.Send("You are not subscribed to that URL.\nSee /listfeed for what you follow.")
 		}
 		log.Println(cmd, "failed:", err)
-		return c.Send("Something went wrong, try again.")
+		return c.Send("Could not look that URL up. " + grpcclient.FriendlyError(err))
 	}
 	return c.Send(success + "\n" + esc(target))
 }
 
-func candidateURLs(input string, links []string) []string {
-	out := make([]string, 0, 1+len(links))
-	seen := make(map[string]struct{}, 1+len(links))
-	add := func(u string) {
-		if u == "" {
-			return
-		}
-		if _, ok := seen[u]; ok {
-			return
-		}
-		seen[u] = struct{}{}
-		out = append(out, u)
-	}
-	add(input)
-	for _, l := range links {
-		add(l)
-	}
-	return out
-}
-
-func firstMatching(candidates, existing []string) string {
-	have := make(map[string]struct{}, len(existing))
-	for _, e := range existing {
-		have[e] = struct{}{}
-	}
-	for _, c := range candidates {
-		if _, ok := have[c]; ok {
-			return c
-		}
-	}
-	return ""
-}
-
-func (h *FeedHandler) subscribedURL(chatID int64, input string, links []string) (string, bool, error) {
-	for _, u := range candidateURLs(input, links) {
-		ok, err := h.Store.Exists(chatID, u)
-		if err != nil {
-			return "", false, err
-		}
-		if ok {
-			return u, true, nil
-		}
-	}
-	return "", false, nil
-}
-
-func (h *FeedHandler) resolveStoredURL(chatID int64, target string) (string, error) {
-	ok, err := h.Store.Exists(chatID, target)
-	if err != nil {
-		return "", err
-	}
-	if ok {
-		return target, nil
-	}
-	links, err := h.API.SetUrl(context.Background(), target)
-	if err != nil {
-		return "", err
-	}
-	stored, found, err := h.subscribedURL(chatID, target, links)
-	if err != nil {
-		return "", err
-	}
-	if !found {
-		return "", gorm.ErrRecordNotFound
-	}
-	return stored, nil
-}
-
 func (h *FeedHandler) RemoveFeed(c tele.Context) error {
 	return h.urlCommand(c, "removefeed",
-		func(chatID int64, target string) error { return h.Store.RemoveByURL(chatID, target) },
+		func(platform, ext, target string) error {
+			return h.API.UnsubscribeByURL(context.Background(), platform, ext, target)
+		},
 		"Unsubscribed from:")
 }
 
 func (h *FeedHandler) EnableFeed(c tele.Context) error {
 	return h.urlCommand(c, "enablefeed",
-		func(chatID int64, target string) error { return h.Store.SetEnabledByURL(chatID, target, true) },
+		func(platform, ext, target string) error {
+			return h.API.SetEnabledByURL(context.Background(), platform, ext, target, true)
+		},
 		"Feed enabled:")
 }
 
 func (h *FeedHandler) DisableFeed(c tele.Context) error {
 	return h.urlCommand(c, "disablefeed",
-		func(chatID int64, target string) error { return h.Store.SetEnabledByURL(chatID, target, false) },
+		func(platform, ext, target string) error {
+			return h.API.SetEnabledByURL(context.Background(), platform, ext, target, false)
+		},
 		"Feed disabled:")
 }
 
@@ -434,19 +346,23 @@ func (h *FeedHandler) SetInterval(c tele.Context) error {
 		return c.Send("Could not parse that duration.\nUse forms like 15m, 30m, 1h or 1h30m.")
 	}
 	applied := d
-	if applied < store.MinInterval {
-		applied = store.MinInterval
+	if applied < minInterval {
+		applied = minInterval
 	}
-	if applied > store.MaxInterval {
-		applied = store.MaxInterval
+	if applied > maxInterval {
+		applied = maxInterval
 	}
-	if err := h.Store.SetChatInterval(c.Chat().ID, applied); err != nil {
+	platform, ext := telegramDest(c.Chat().ID)
+	if err := h.API.SetInterval(context.Background(), platform, ext, applied); err != nil {
+		if grpcclient.IsNotFound(err) {
+			return c.Send("You have no subscriptions yet - add one with /addfeed <url>")
+		}
 		log.Println("interval update failed:", err)
 		return c.Send("Something went wrong, try again.")
 	}
 	note := ""
 	if applied != d {
-		note = fmt.Sprintf("\n<i>Clamped to the allowed range (%s - %s).</i>", store.MinInterval, store.MaxInterval)
+		note = fmt.Sprintf("\n<i>Clamped to the allowed range (%s - %s).</i>", minInterval, maxInterval)
 	}
 	return c.Send(fmt.Sprintf("All feeds in this chat now refresh every %s.%s", applied, note))
 }

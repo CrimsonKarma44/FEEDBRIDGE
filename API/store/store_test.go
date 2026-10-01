@@ -154,6 +154,29 @@ func TestDueFor_FiltersPlatform(t *testing.T) {
 	}
 }
 
+func TestMarkDue_HidesUntilIntervalElapses(t *testing.T) {
+	st := newStore(t)
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	sub, _, err := st.Add("telegram", "1", "https://example.com/feed", DefaultInterval)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.db.Model(sub).Update("next_check_at", now.Add(-time.Minute)).Error; err != nil {
+		t.Fatal(err)
+	}
+	due, err := st.DueFor("telegram", now, 10)
+	if err != nil || len(due) != 1 {
+		t.Fatalf("due=%d err=%v", len(due), err)
+	}
+	if err := st.MarkDue(due, now); err != nil {
+		t.Fatal(err)
+	}
+	again, err := st.DueFor("telegram", now, 10)
+	if err != nil || len(again) != 0 {
+		t.Fatalf("after mark due=%d err=%v", len(again), err)
+	}
+}
+
 func TestAckCursor_AdvancesPublishedAndNextCheck(t *testing.T) {
 	st := newStore(t)
 	sub, _, err := st.Add("telegram", "1", "https://example.com/feed", DefaultInterval)

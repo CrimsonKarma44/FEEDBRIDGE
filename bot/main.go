@@ -6,20 +6,16 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/grpcclient"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/handlers"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/model"
-	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/store"
 	tele "gopkg.in/telebot.v4"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
-// safe wraps handlers with panic recovery. Telebot runs each handler in a
-// bare goroutine, so an unrecovered panic would kill the whole bot silently.
 func safe(h tele.HandlerFunc) tele.HandlerFunc {
 	return func(c tele.Context) error {
 		defer func() {
@@ -50,15 +46,6 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	db, err := gorm.Open(postgres.Open(env.Database.DSN()), &gorm.Config{})
-	if err != nil {
-		log.Fatal("database connection failed: ", err)
-	}
-	st, err := store.New(db)
-	if err != nil {
-		log.Fatal("store migration failed: ", err)
-	}
-
 	api, err := grpcclient.New(env.APIAddr)
 	if err != nil {
 		log.Fatal("feed service client failed: ", err)
@@ -86,13 +73,35 @@ func main() {
 	log.Printf("worker pool size %d", model.WorkerCount())
 	wp.Start(ctx)
 
-	scheduler := model.NewTaskScheduler(wp.TaskQueue, st, func(sub *store.Subscription) *model.Task {
-		return handlers.FetchTask(bot, api, st, sub)
+	listDue := func(ctx context.Context, limit int) ([]model.DueSub, error) {
+		subs, err := api.ListDue(ctx, "telegram", int32(limit))
+		if err != nil {
+			return nil, err
+		}
+		out := make([]model.DueSub, 0, len(subs))
+		for _, s := range subs {
+			chatID, _ := strconv.ParseInt(s.GetExternalId(), 10, 64)
+			var cursor time.Time
+			if s.GetLastSeenPublished() != nil {
+				cursor = s.GetLastSeenPublished().AsTime()
+			}
+			out = append(out, model.DueSub{
+				ID:                s.GetId(),
+				URL:               s.GetUrl(),
+				ChatID:            chatID,
+				LastSeenPublished: cursor,
+			})
+		}
+		return out, nil
+	}
+
+	scheduler := model.NewTaskScheduler(wp.TaskQueue, listDue, func(sub model.DueSub) *model.Task {
+		return handlers.FetchTask(bot, api, sub)
 	})
 	scheduler.Start(ctx)
 
 	envConf := &handlers.EntryConfig{}
-	feedHandler := &handlers.FeedHandler{Store: st, API: api}
+	feedHandler := &handlers.FeedHandler{API: api}
 
 	handle := func(endpoint string, h tele.HandlerFunc) {
 		bot.Handle(endpoint, safe(h))
@@ -130,11 +139,6 @@ func main() {
 
 	if err := api.Close(); err != nil {
 		log.Printf("api client close: %v", err)
-	}
-	if sqlDB, derr := db.DB(); derr == nil {
-		if cerr := sqlDB.Close(); cerr != nil {
-			log.Printf("db close: %v", cerr)
-		}
 	}
 	log.Println("shutdown complete")
 }

@@ -20,3 +20,15 @@
 - `API/main.go` — register SubscriptionService.
 - `API/Makefile` — `make proto` target.
 - `bot/grpcclient/client.go` — subscription RPC wrappers (handlers still use local store).
+
+## 2026-10-01 11:45
+<!-- id: d90fc497-41ec-45cf-ac0b-4f2a54ef401a -->
+- `API/store/migrate.go` — backfill `platform`/`external_id` from legacy `chat_id`; unique dest index after fill.
+- `API/store/store.go` — `MarkDue` so ListDue does not re-claim until the interval elapses.
+- `API/handlers/subscription.go` — ListDue claims due rows via MarkDue.
+- `bot/handlers/feed.go` — add/list/remove/enable/interval and callbacks use subscription gRPC.
+- `bot/handlers/pipeline.go` — FetchTask acks cursor over gRPC.
+- `bot/model/task.go` — scheduler pulls due rows from ListDue, no local store.
+- `bot/main.go` — drop Postgres; bot is Telegram + gRPC only.
+- `bot/handlers/feed_identity_test.go` — removed (identity lives in the API).
+- `bot/grpcclient/client.go` — GetSubscription and IsNotFound.

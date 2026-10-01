@@ -17,15 +17,15 @@ const (
 type Subscription struct {
 	gorm.Model
 
-	Platform   string `gorm:"uniqueIndex:idx_dest_url;size:32;not null"`
-	ExternalID string `gorm:"uniqueIndex:idx_dest_url;size:64;not null"`
-	URL        string `gorm:"uniqueIndex:idx_dest_url;size:2048;not null"`
+	Platform   string `gorm:"size:32"`
+	ExternalID string `gorm:"size:64"`
+	URL        string `gorm:"size:2048"`
 
-	IntervalSeconds     int  `gorm:"default:600"`
-	Enabled             bool `gorm:"default:true"`
-	LastCheckedAt       time.Time
-	LastSeenPublished   time.Time
-	NextCheckAt         time.Time
+	IntervalSeconds   int  `gorm:"default:600"`
+	Enabled           bool `gorm:"default:true"`
+	LastCheckedAt     time.Time
+	LastSeenPublished time.Time
+	NextCheckAt       time.Time
 }
 
 func ClampInterval(d time.Duration) time.Duration {

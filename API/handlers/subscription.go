@@ -99,8 +99,12 @@ func (h *SubscriptionHandler) ListDue(_ context.Context, req *pb.ListDueRequest)
 	if limit <= 0 {
 		limit = 25
 	}
-	subs, err := h.Subs.Store().DueFor(req.GetPlatform(), time.Now().UTC(), limit)
+	now := time.Now().UTC()
+	subs, err := h.Subs.Store().DueFor(req.GetPlatform(), now, limit)
 	if err != nil {
+		return nil, subscribeStatus(err)
+	}
+	if err := h.Subs.Store().MarkDue(subs, now); err != nil {
 		return nil, subscribeStatus(err)
 	}
 	return toProtoList(subs), nil

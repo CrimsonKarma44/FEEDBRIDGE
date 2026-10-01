@@ -140,6 +140,16 @@ func (c *Client) SetEnabled(ctx context.Context, id uint64, enabled bool) error 
 	return err
 }
 
+func (c *Client) GetSubscription(ctx context.Context, id uint64) (*subpb.Subscription, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return c.sub.Get(ctx, &subpb.SubscriptionID{Id: id})
+}
+
+func IsNotFound(err error) bool {
+	return status.Code(err) == codes.NotFound
+}
+
 func (c *Client) Unsubscribe(ctx context.Context, id uint64) error {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()

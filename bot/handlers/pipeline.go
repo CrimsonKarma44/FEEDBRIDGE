@@ -10,7 +10,6 @@ import (
 	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/Feed"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/grpcclient"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/model"
-	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/store"
 	tele "gopkg.in/telebot.v4"
 )
 
@@ -83,9 +82,9 @@ func SendDigest(bot Sender, chatID int64, items []*feedpb.GetFeedsResponse_Feed)
 // FetchTask builds the worker job for one subscription: fetch items newer than
 // the cursor, deliver them, then advance the cursor. Undated items are skipped
 // so they can never repeat forever.
-func FetchTask(bot *tele.Bot, api *grpcclient.Client, st *store.Store, sub *store.Subscription) *model.Task {
+func FetchTask(bot *tele.Bot, api *grpcclient.Client, sub model.DueSub) *model.Task {
 	return model.NewTask(
-		"fetch:"+strconv.FormatUint(uint64(sub.ID), 10),
+		"fetch:"+strconv.FormatUint(sub.ID, 10),
 		func(ctx context.Context) error {
 			items, err := api.GetFeed(ctx, sub.URL, sub.LastSeenPublished)
 			if err != nil {
@@ -118,10 +117,9 @@ func FetchTask(bot *tele.Bot, api *grpcclient.Client, st *store.Store, sub *stor
 			}
 
 			cursor := cursorAfterPartial(sent, delivered, newest)
-			if err := st.UpdateCursor(sub.ID, cursor); err != nil {
+			if err := api.AckCursor(ctx, sub.ID, cursor); err != nil {
 				return err
 			}
-			sub.LastSeenPublished = cursor
 			return nil
 		},
 	)

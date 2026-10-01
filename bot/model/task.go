@@ -5,8 +5,6 @@ import (
 	"log"
 	"sync"
 	"time"
-
-	"github.com/CrimsonKarma44/FEEDBRIDGE/bot/store"
 )
 
 type Task struct {
@@ -24,6 +22,13 @@ type TaskResult struct {
 	Timestamp time.Time
 }
 
+type DueSub struct {
+	ID                uint64
+	URL               string
+	ChatID            int64
+	LastSeenPublished time.Time
+}
+
 const (
 	schedulerTick   = 30 * time.Second
 	maxTasksPerTick = 25
@@ -33,15 +38,15 @@ type TaskScheduler struct {
 	mu        sync.Mutex
 	tasks     map[string]*Task
 	taskQueue chan<- *Task
-	store     *store.Store
-	factory   func(sub *store.Subscription) *Task
+	listDue   func(ctx context.Context, limit int) ([]DueSub, error)
+	factory   func(DueSub) *Task
 }
 
-func NewTaskScheduler(taskQueue chan<- *Task, st *store.Store, factory func(sub *store.Subscription) *Task) *TaskScheduler {
+func NewTaskScheduler(taskQueue chan<- *Task, listDue func(ctx context.Context, limit int) ([]DueSub, error), factory func(DueSub) *Task) *TaskScheduler {
 	return &TaskScheduler{
 		tasks:     make(map[string]*Task),
 		taskQueue: taskQueue,
-		store:     st,
+		listDue:   listDue,
 		factory:   factory,
 	}
 }
@@ -75,9 +80,7 @@ func (ts *TaskScheduler) Start(ctx context.Context) {
 }
 
 func (ts *TaskScheduler) dispatchDue(ctx context.Context) {
-	now := time.Now()
-
-	due, err := ts.store.Due(now, maxTasksPerTick)
+	due, err := ts.listDue(ctx, maxTasksPerTick)
 	if err != nil {
 		log.Println("scheduler due query failed:", err)
 		return
@@ -86,19 +89,10 @@ func (ts *TaskScheduler) dispatchDue(ctx context.Context) {
 		return
 	}
 
-	ids := make([]uint, len(due))
-	for i := range due {
-		ids[i] = due[i].ID
-	}
-	if err := ts.store.MarkChecked(ids, now); err != nil {
-		log.Println("scheduler mark-checked failed:", err)
-		return
-	}
-
 	for i := range due {
 		sub := due[i]
 		select {
-		case ts.taskQueue <- ts.factory(&sub):
+		case ts.taskQueue <- ts.factory(sub):
 		case <-ctx.Done():
 			return
 		default:
