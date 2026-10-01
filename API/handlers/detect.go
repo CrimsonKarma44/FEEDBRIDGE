@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/models"
+	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/utility"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/youtube"
 	rssdetector "github.com/CrimsonKarma44/rss_detector"
@@ -20,6 +21,25 @@ var detector = rssdetector.New(
 	rssdetector.WithHTTPClient(utility.NewSafeHTTPClient(30*time.Second)),
 	rssdetector.WithUserAgent(utility.FeedUserAgent),
 )
+
+// ResolverDetector adapts resolveFeeds to service.Detector.
+type ResolverDetector struct {
+	YouTube *youtube.Resolver
+}
+
+func (d ResolverDetector) Detect(ctx context.Context, rawURL string) ([]service.FeedLink, error) {
+	links, err := resolveFeeds(ctx, d.YouTube, rawURL)
+	if err != nil {
+		return nil, detectErrorStatus(rawURL, err)
+	}
+	out := make([]service.FeedLink, 0, len(links))
+	for _, l := range links {
+		if l.URL != "" {
+			out = append(out, service.FeedLink{URL: l.URL})
+		}
+	}
+	return out, nil
+}
 
 // linksFromCached converts a url->type map back into feed links.
 // Map iteration is unordered; URLs are sorted so hash/DB fallbacks are stable.

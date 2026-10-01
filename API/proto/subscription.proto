@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package handler;
+option go_package = "/subscription";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+service SubscriptionService {
+    rpc Subscribe(SubscribeRequest) returns (SubscribeResponse);
+    rpc Unsubscribe(SubscriptionID) returns (Empty);
+    rpc Get(SubscriptionID) returns (Subscription);
+    rpc SetEnabled(SetEnabledRequest) returns (Empty);
+    rpc SetEnabledByURL(URLMutation) returns (Empty);
+    rpc UnsubscribeByURL(URLMutation) returns (Empty);
+    rpc SetInterval(SetIntervalRequest) returns (Empty);
+    rpc List(ListRequest) returns (ListResponse);
+    rpc ListDue(ListDueRequest) returns (ListResponse);
+    rpc AckCursor(AckCursorRequest) returns (Empty);
+}
+
+message Empty {}
+
+message SubscribeRequest {
+    string platform = 1;
+    string external_id = 2;
+    string url = 3;
+}
+
+message SubscribeResponse {
+    Subscription subscription = 1;
+    bool created = 2;
+}
+
+message Subscription {
+    uint64 id = 1;
+    string platform = 2;
+    string external_id = 3;
+    string url = 4;
+    int32 interval_seconds = 5;
+    bool enabled = 6;
+    google.protobuf.Timestamp last_seen_published = 7;
+    google.protobuf.Timestamp next_check_at = 8;
+}
+
+message SubscriptionID {
+    uint64 id = 1;
+}
+
+message SetEnabledRequest {
+    uint64 id = 1;
+    bool enabled = 2;
+}
+
+message URLMutation {
+    string platform = 1;
+    string external_id = 2;
+    string url = 3;
+    bool enabled = 4; // SetEnabledByURL only
+}
+
+message SetIntervalRequest {
+    string platform = 1;
+    string external_id = 2;
+    google.protobuf.Duration interval = 3;
+}
+
+message ListRequest {
+    string platform = 1;
+    string external_id = 2;
+}
+
+message ListDueRequest {
+    string platform = 1;
+    int32 limit = 2;
+}
+
+message ListResponse {
+    repeated Subscription subscriptions = 1;
+}
+
+message AckCursorRequest {
+    uint64 id = 1;
+    google.protobuf.Timestamp published_at = 2;
+}

@@ -14,7 +14,9 @@ import (
 	handler "github.com/CrimsonKarma44/FEEDBRIDGE/API/handlers"
 	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/Feed"
 	pb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/setUrl"
+	subpb "github.com/CrimsonKarma44/FEEDBRIDGE/API/protoAPI/subscription"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/service"
+	apistore "github.com/CrimsonKarma44/FEEDBRIDGE/API/store"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/API/youtube"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -59,6 +61,11 @@ func main() {
 	// Initializing link service
 	linkService := service.NewLinkRepoService(db.DB) // redis
 	ytResolver := youtube.NewResolver(env.YoutubeAPIKey)
+	subStore, err := apistore.New(db.DB)
+	if err != nil {
+		logger.Fatalf("subscription store: %v", err)
+	}
+	subSvc := service.NewSubscribeService(subStore, handler.ResolverDetector{YouTube: ytResolver})
 
 	// Registering gRPC services
 	srvUrl := &handler.SetUrlHandler{LinkService: linkService, RedisClient: redis, YouTube: ytResolver}
@@ -69,6 +76,7 @@ func main() {
 	))
 	pb.RegisterSetUrlHandlerServer(s, srvUrl)
 	feedpb.RegisterFeedHandlerServiceServer(s, srvFeed)
+	subpb.RegisterSubscriptionServiceServer(s, &handler.SubscriptionHandler{Subs: subSvc})
 
 	healthSrv := health.NewServer()
 	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)

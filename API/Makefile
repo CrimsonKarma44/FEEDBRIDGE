@@ -2,7 +2,15 @@ HOST ?= USER@your-vm-ip
 REMOTE_DIR := /opt/feedbridge
 LDFLAGS := -s -w
 
-.PHONY: update run build-linux deploy clean
+.PHONY: update run build-linux deploy clean proto
+
+proto :
+	PATH="$(PATH):$(shell go env GOPATH)/bin" protoc \
+		--go_out=protoAPI --go-grpc_out=protoAPI \
+		--proto_path=proto \
+		--proto_path=/usr/include \
+		proto/subscription.proto proto/feed.proto proto/setUrl.proto
+	echo "Generated protoAPI"
 
 update :
 	"Updating dependencies"
