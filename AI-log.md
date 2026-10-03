@@ -32,3 +32,19 @@
 - `bot/main.go` — drop Postgres; bot is Telegram + gRPC only.
 - `bot/handlers/feed_identity_test.go` — removed (identity lives in the API).
 - `bot/grpcclient/client.go` — GetSubscription and IsNotFound.
+
+## 2026-10-01 11:47
+<!-- id: e9177c14-1338-4cc2-aa6b-1ce8250ea891 -->
+- No project changes. Explained GCE SSH keys: local `~/.ssh/google_compute_engine`, metadata keys expired, how to refresh.
+
+## 2026-10-01 11:51
+<!-- id: 7a025655-b487-4c1e-9d16-02168cb6b6f1 -->
+- No project changes. Explained forgotten SSH passphrase cannot be recovered; replace `google_compute_engine` with a new key via gcloud.
+
+## 2026-10-01 12:12
+<!-- id: current-session -->
+- Model: deepseek/deepseek-v4-flash (via opencode)
+- Built new linux/amd64 binaries for API and bot with the refactored subscription gRPC code.
+- Deployed to GCE VM `feedbridge` (35.239.193.103): copied binaries, installed to `/opt/feedbridge/`, restarted systemd services.
+- First transfer via `cat >` pipe corrupted the binaries (truncated), causing SIGSEGV. Re-transferred with `gcloud compute scp`.
+- Both services now active and healthy. DB migration (AutoMigrate + BackfillDestinations) ran successfully on API startup.
