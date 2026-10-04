@@ -8,14 +8,18 @@ FEEDBRIDGE detects syndication feeds (RSS / Atom / JSON Feed) for any site URL, 
 
 ```
 Telegram  <-->  bot/  --gRPC-->  API/  -->  Postgres + Redis
-                  |
-                  +-- scheduler (30s tick) -> worker pool (WORKER_COUNT) -> dedupe -> delivery
+                           |
+                   scheduler (30s tick)
+                           |
+                    worker pool (WORKER_COUNT)
+                           |
+                    dedupe → delivery
 ```
 
 | Component | What it does |
 |---|---|
-| `API/` | Go gRPC server on `LISTEN_ADDR` (default `127.0.0.1:50051`). Feed detection via [rss_detector](https://github.com/CrimsonKarma44/rss_detector), link registry in Postgres (GORM), Redis caching with TTLs (feed items 10 min, feed links 24 h, negative results 5 min), singleflight coalescing of identical requests, panic-recovery + logging interceptors, gRPC health checks & reflection |
-| `bot/` | Telebot v4 client. Per-chat subscriptions stored in the same Postgres, admin-only management inside groups, scheduled polling, hybrid delivery: up to 5 new items as individual messages, larger batches collapsed into one digest. Worker pool size is `WORKER_COUNT` (default 10; use 3 on the 1 GB e2-micro). |
+| `API/` | Go gRPC server on `LISTEN_ADDR` (default `127.0.0.1:50051`). Feed detection via [rss_detector](https://github.com/CrimsonKarma44/rss_detector), link registry + subscriptions in Postgres (GORM), Redis caching with TTLs (feed items 10 min, feed links 24 h, negative results 5 min), singleflight coalescing of identical requests, panic-recovery + logging interceptors, gRPC health checks & reflection. Owns the scheduler: `ListDue` → worker fetch → dedupe → `AckCursor`. |
+| `bot/` | Telebot v4 client. No direct database access — all subscription operations go through gRPC to the API. Per-chat commands, admin-only management inside groups, delivery formatting (individual messages for ≤5 items, digest for larger batches). Worker pool size is `WORKER_COUNT` (default 10; use 3 on the 1 GB e2-micro). |
 
 ### API services (`handler` package)
 
@@ -23,6 +27,20 @@ Telegram  <-->  bot/  --gRPC-->  API/  -->  Postgres + Redis
 |---|---|
 | `SetUrlHandler/SetUrl(url)` | Detects feeds for a URL, persists to Postgres, caches in Redis, returns detected feed links |
 | `FeedHandlerService/GetFeed(url, from)` | Returns items published at/after `from` (undated items always included), newest first |
+| `SubscriptionService` | Full subscription lifecycle — see RPCs below |
+
+#### SubscriptionService RPCs
+
+| RPC | Description |
+|---|---|
+| `Subscribe(platform, external_id, url)` | Subscribe a chat/group to a feed, returns subscription + whether newly created |
+| `Unsubscribe(id)` / `UnsubscribeByURL(platform, external_id, url)` | Remove by ID or by composite key |
+| `Get(id)` | Fetch a single subscription |
+| `SetEnabled(id, enabled)` / `SetEnabledByURL(platform, external_id, url, enabled)` | Enable/disable by ID or by composite key |
+| `SetInterval(platform, external_id, interval)` | Update refresh cadence for all subscriptions in a chat |
+| `List(platform, external_id)` | List all subscriptions for a chat |
+| `ListDue(platform, limit)` | Return enabled subscriptions whose interval has elapsed (scheduler driver) |
+| `AckCursor(id, published_at)` | Advance the `last_seen_published` cursor after successful fetch |
 
 ## Setup
 
@@ -42,7 +60,7 @@ cp bot/.env.example bot/.env      # fill in TELEGRAM_BOT_TOKEN + DB values
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `DB_HOST` `DB_USER` `DB_PASSWORD` `DB_NAME` `DB_PORT` | both | Shared PostgreSQL instance |
+| `DB_HOST` `DB_USER` `DB_PASSWORD` `DB_NAME` `DB_PORT` | API (bot env reads them but they're unused now) | PostgreSQL connection |
 | `REDIS_ADDR` `REDIS_PASSWORD` `REDIS_DB` `REDIS_PROTOCOL` | API | Redis cache backend |
 | `LISTEN_ADDR` | API | gRPC bind address (default `127.0.0.1:50051`) |
 | `API_ADDR` | bot | gRPC endpoint of the API (default `localhost:50051`) |
@@ -50,6 +68,8 @@ cp bot/.env.example bot/.env      # fill in TELEGRAM_BOT_TOKEN + DB values
 | `WORKER_COUNT` | bot | Fetch worker pool size (default 10) |
 | `YOUTUBE_API_KEY` | API | Optional; prefers Data API v3 in the YouTube resolver |
 | `FEEDBRIDGE_ALLOW_PRIVATE_FETCH` | API | Set to `1` to allow fetching LAN/loopback feed URLs (off by default) |
+
+> The bot's local `bot/store/store.go` is **unused** — all subscription state lives in the API's Postgres. The bot's `.env.example` still lists DB vars only for backward compatibility; they are not read at runtime.
 
 > Note: `.env` files are gitignored — never commit them.
 
@@ -87,11 +107,14 @@ In groups only **admins** can manage feeds.
 
 ## Development notes
 
-- Generated protobuf code lives in `API/protoAPI/` (committed). After editing `API/proto/*.proto`, regenerate with `protoc`.
-- `bot/go.mod` uses local `replace` directives pointing at `../API` and the local `rss_detector` checkout — adjust paths if your layout differs.
+- Generated protobuf code lives in `API/protoAPI/` (committed). After editing `API/proto/*.proto`, regenerate with `make -C API proto`.
+- `bot/go.mod` uses a local `replace` directive pointing at `../API` — the bot imports the API's generated gRPC stubs and shares the same `rss_detector`.
+- Both modules `replace` `github.com/CrimsonKarma44/rss_detector` with a local checkout. Adjust paths in `go.mod` if your layout differs.
 - `API/youtube/` resolves any YouTube video/handle/channel URL to its Atom feed (Innertube first, Data API v3 when a key is set).
 - Cache layers: repeat `GetFeed` calls within the item TTL are served entirely from Redis.
 - Subscriptions are keyed on the **resolved feed URL** (not the input URL): adding any page of a site whose feed you already follow answers "already subscribed" instead of creating a duplicate.
+- The scheduler runs inside the API (`ListDue` → worker pool → `AckCursor`). The bot only formats and delivers results, leaving the fetch/scheduling loop to the API.
+- `bot/store/store.go` is **legacy** and not imported. The bot has no direct Postgres dependency at runtime; all CRUD goes through gRPC to the API.
 
 ## Deployment (Google Cloud Always Free — e2-micro, $0)
 
@@ -164,6 +187,8 @@ sudoedit /etc/feedbridge/api.env /etc/feedbridge/bot.env
 
 Do **not** reuse the laptop Redis/Postgres passwords; the VM generated new ones.
 
+Note: The bot's env file on the VM still includes `DB_*` variables but the bot no longer connects to Postgres directly.
+
 ```bash
 sudo cp ~/deploy/feedbridge-*.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -171,7 +196,14 @@ sudo systemctl daemon-reload
 
 ### 4. Ship binaries (from your laptop)
 
-`make deploy` uses plain `ssh`/`scp`. `gcloud compute scp` is more reliable with OS Login keys:
+Use the deploy scripts in `deploy/` — each cross-compiles a static binary, copies it to the VM, and restarts the service:
+
+```bash
+HOST=you@EXTERNAL_IP ./deploy/deploy-api.sh
+HOST=you@EXTERNAL_IP ./deploy/deploy-bot.sh
+```
+
+Or do it step by step:
 
 ```bash
 # repo root
