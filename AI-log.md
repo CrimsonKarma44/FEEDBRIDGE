@@ -10,28 +10,28 @@
 
 ## 2026-10-01 11:14
 <!-- id: 16b85814-471f-4060-8be7-e3fe52e39800 -->
-- `API/internal/testdb/` — in-memory SQLite helper for store tests.
-- `API/store/` — destination-keyed subscriptions (`platform` + `external_id`), `NextCheckAt` due query, identity matching.
-- `API/service/subscribe.go` — Subscribe/ResolveURL with injected detector.
-- `API/proto/subscription.proto` — SubscriptionService including ListDue/AckCursor.
-- `API/protoAPI/subscription/` — generated stubs.
-- `API/handlers/subscription.go` — gRPC handler + bufconn tests.
-- `API/handlers/detect.go` — ResolverDetector adapter.
-- `API/main.go` — register SubscriptionService.
-- `API/Makefile` — `make proto` target.
-- `bot/grpcclient/client.go` — subscription RPC wrappers (handlers still use local store).
+- `backend/internal/testdb/` — in-memory SQLite helper for store tests.
+- `backend/store/` — destination-keyed subscriptions (`platform` + `external_id`), `NextCheckAt` due query, identity matching.
+- `backend/service/subscribe.go` — Subscribe/ResolveURL with injected detector.
+- `backend/proto/subscription.proto` — SubscriptionService including ListDue/AckCursor.
+- `backend/protoAPI/subscription/` — generated stubs.
+- `backend/handlers/subscription.go` — gRPC handler + bufconn tests.
+- `backend/handlers/detect.go` — ResolverDetector adapter.
+- `backend/main.go` — register SubscriptionService.
+- `backend/Makefile` — `make proto` target.
+- `telegram-bot/grpcclient/client.go` — subscription RPC wrappers (handlers still use local store).
 
 ## 2026-10-01 11:45
 <!-- id: d90fc497-41ec-45cf-ac0b-4f2a54ef401a -->
-- `API/store/migrate.go` — backfill `platform`/`external_id` from legacy `chat_id`; unique dest index after fill.
-- `API/store/store.go` — `MarkDue` so ListDue does not re-claim until the interval elapses.
-- `API/handlers/subscription.go` — ListDue claims due rows via MarkDue.
-- `bot/handlers/feed.go` — add/list/remove/enable/interval and callbacks use subscription gRPC.
-- `bot/handlers/pipeline.go` — FetchTask acks cursor over gRPC.
-- `bot/model/task.go` — scheduler pulls due rows from ListDue, no local store.
-- `bot/main.go` — drop Postgres; bot is Telegram + gRPC only.
-- `bot/handlers/feed_identity_test.go` — removed (identity lives in the API).
-- `bot/grpcclient/client.go` — GetSubscription and IsNotFound.
+- `backend/store/migrate.go` — backfill `platform`/`external_id` from legacy `chat_id`; unique dest index after fill.
+- `backend/store/store.go` — `MarkDue` so ListDue does not re-claim until the interval elapses.
+- `backend/handlers/subscription.go` — ListDue claims due rows via MarkDue.
+- `telegram-bot/handlers/feed.go` — add/list/remove/enable/interval and callbacks use subscription gRPC.
+- `telegram-bot/handlers/pipeline.go` — FetchTask acks cursor over gRPC.
+- `telegram-bot/model/task.go` — scheduler pulls due rows from ListDue, no local store.
+- `telegram-bot/main.go` — drop Postgres; bot is Telegram + gRPC only.
+- `telegram-bot/handlers/feed_identity_test.go` — removed (identity lives in the API).
+- `telegram-bot/grpcclient/client.go` — GetSubscription and IsNotFound.
 
 ## 2026-10-01 11:47
 <!-- id: e9177c14-1338-4cc2-aa6b-1ce8250ea891 -->

@@ -68,10 +68,10 @@ cat <<EOF
 
  Next steps:
    1) Copy env examples to /etc/feedbridge and fill secrets:
-        sudo cp ~/deploy/env/api.env.example /etc/feedbridge/api.env
-        sudo cp ~/deploy/env/bot.env.example /etc/feedbridge/bot.env
+        sudo cp ~/deploy/env/backend.env.example /etc/feedbridge/backend.env
+        sudo cp ~/deploy/env/telegram-bot.env.example /etc/feedbridge/telegram-bot.env
         sudo chmod 600 /etc/feedbridge/*.env
-        sudoedit /etc/feedbridge/api.env /etc/feedbridge/bot.env
+        sudoedit /etc/feedbridge/backend.env /etc/feedbridge/telegram-bot.env
       Use the REDIS_PASSWORD printed above and the Postgres password
       you just set. Set TELEGRAM_BOT_TOKEN in bot.env.
       On the e2-micro keep WORKER_COUNT=3.
@@ -79,8 +79,8 @@ cat <<EOF
         sudo cp ~/deploy/feedbridge-*.service /etc/systemd/system/
         sudo systemctl daemon-reload
    3) From your laptop (do not compile on this VM):
-        make -C API deploy HOST=\$USER@\$(curl -s ifconfig.me)
-        make -C bot deploy HOST=\$USER@\$(curl -s ifconfig.me)
+        make -C backend deploy HOST=\$USER@\$(curl -s ifconfig.me)
+        make -C telegram-bot deploy HOST=\$USER@\$(curl -s ifconfig.me)
    4) sudo systemctl enable --now feedbridge-api feedbridge-bot
 ============================================================
 EOF

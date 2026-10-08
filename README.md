@@ -7,7 +7,7 @@ FEEDBRIDGE detects syndication feeds (RSS / Atom / JSON Feed) for any site URL, 
 ## Architecture
 
 ```
-Telegram  <-->  bot/  --gRPC-->  API/  -->  Postgres + Redis
+Telegram  <-->  telegram-bot/  --gRPC-->  backend/  -->  Postgres + Redis
                            |
                    scheduler (30s tick)
                            |
@@ -18,8 +18,8 @@ Telegram  <-->  bot/  --gRPC-->  API/  -->  Postgres + Redis
 
 | Component | What it does |
 |---|---|
-| `API/` | Go gRPC server on `LISTEN_ADDR` (default `127.0.0.1:50051`). Feed detection via [rss_detector](https://github.com/CrimsonKarma44/rss_detector), link registry + subscriptions in Postgres (GORM), Redis caching with TTLs (feed items 10 min, feed links 24 h, negative results 5 min), singleflight coalescing of identical requests, panic-recovery + logging interceptors, gRPC health checks & reflection. Owns the scheduler: `ListDue` → worker fetch → dedupe → `AckCursor`. |
-| `bot/` | Telebot v4 client. No direct database access — all subscription operations go through gRPC to the API. Per-chat commands, admin-only management inside groups, delivery formatting (individual messages for ≤5 items, digest for larger batches). Worker pool size is `WORKER_COUNT` (default 10; use 3 on the 1 GB e2-micro). |
+| `backend/` | Go gRPC server on `LISTEN_ADDR` (default `127.0.0.1:50051`). Feed detection via [rss_detector](https://github.com/CrimsonKarma44/rss_detector), link registry + subscriptions in Postgres (GORM), Redis caching with TTLs (feed items 10 min, feed links 24 h, negative results 5 min), singleflight coalescing of identical requests, panic-recovery + logging interceptors, gRPC health checks & reflection. Owns the scheduler: `ListDue` → worker fetch → dedupe → `AckCursor`. |
+| `telegram-bot/` | Telebot v4 client. No direct database access — all subscription operations go through gRPC to the API. Per-chat commands, admin-only management inside groups, delivery formatting (individual messages for ≤5 items, digest for larger batches). Worker pool size is `WORKER_COUNT` (default 10; use 3 on the 1 GB e2-micro). |
 
 ### API services (`handler` package)
 
@@ -54,8 +54,8 @@ Telegram  <-->  bot/  --gRPC-->  API/  -->  Postgres + Redis
 ### 1. Configure
 
 ```bash
-cp API/.env.example API/.env      # fill in DB + Redis values
-cp bot/.env.example bot/.env      # fill in TELEGRAM_BOT_TOKEN + DB values
+cp backend/.env.example backend/.env      # fill in DB + Redis values
+cp telegram-bot/.env.example telegram-bot/.env      # fill in TELEGRAM_BOT_TOKEN + DB values
 ```
 
 | Variable | Used by | Purpose |
@@ -69,14 +69,14 @@ cp bot/.env.example bot/.env      # fill in TELEGRAM_BOT_TOKEN + DB values
 | `YOUTUBE_API_KEY` | API | Optional; prefers Data API v3 in the YouTube resolver |
 | `FEEDBRIDGE_ALLOW_PRIVATE_FETCH` | API | Set to `1` to allow fetching LAN/loopback feed URLs (off by default) |
 
-> The bot's local `bot/store/store.go` is **unused** — all subscription state lives in the API's Postgres. The bot's `.env.example` still lists DB vars only for backward compatibility; they are not read at runtime.
+> The bot's local `telegram-bot/store/store.go` is **unused** — all subscription state lives in the API's Postgres. The bot's `.env.example` still lists DB vars only for backward compatibility; they are not read at runtime.
 
 > Note: `.env` files are gitignored — never commit them.
 
 ### 2. Run the API
 
 ```bash
-cd API
+cd backend
 make run          # builds ./feedbridge then executes it
 ```
 
@@ -85,7 +85,7 @@ The server listens on `127.0.0.1:50051` unless `LISTEN_ADDR` is set. Schema is a
 ### 3. Run the bot
 
 ```bash
-cd bot
+cd telegram-bot
 go run .
 ```
 
@@ -107,14 +107,14 @@ In groups only **admins** can manage feeds.
 
 ## Development notes
 
-- Generated protobuf code lives in `API/protoAPI/` (committed). After editing `API/proto/*.proto`, regenerate with `make -C API proto`.
-- `bot/go.mod` uses a local `replace` directive pointing at `../API` — the bot imports the API's generated gRPC stubs and shares the same `rss_detector`.
+- Generated protobuf code lives in `backend/protoAPI/` (committed). After editing `backend/proto/*.proto`, regenerate with `make -C backend proto`.
+- `telegram-bot/go.mod` uses a local `replace` directive pointing at `../backend` — the bot imports the API's generated gRPC stubs and shares the same `rss_detector`.
 - Both modules `replace` `github.com/CrimsonKarma44/rss_detector` with a local checkout. Adjust paths in `go.mod` if your layout differs.
-- `API/youtube/` resolves any YouTube video/handle/channel URL to its Atom feed (Innertube first, Data API v3 when a key is set).
+- `backend/youtube/` resolves any YouTube video/handle/channel URL to its Atom feed (Innertube first, Data API v3 when a key is set).
 - Cache layers: repeat `GetFeed` calls within the item TTL are served entirely from Redis.
 - Subscriptions are keyed on the **resolved feed URL** (not the input URL): adding any page of a site whose feed you already follow answers "already subscribed" instead of creating a duplicate.
 - The scheduler runs inside the API (`ListDue` → worker pool → `AckCursor`). The bot only formats and delivers results, leaving the fetch/scheduling loop to the API.
-- `bot/store/store.go` is **legacy** and not imported. The bot has no direct Postgres dependency at runtime; all CRUD goes through gRPC to the API.
+- `telegram-bot/store/store.go` is **legacy** and not imported. The bot has no direct Postgres dependency at runtime; all CRUD goes through gRPC to the API.
 
 ## Deployment (Google Cloud Always Free — e2-micro, $0)
 
@@ -174,16 +174,16 @@ sudo grep '^requirepass ' /etc/redis/redis.conf
 Then create the two env files (these are the only files you author on the VM):
 
 ```bash
-sudo cp ~/deploy/env/api.env.example /etc/feedbridge/api.env
-sudo cp ~/deploy/env/bot.env.example /etc/feedbridge/bot.env
+sudo cp ~/deploy/env/backend.env.example /etc/feedbridge/backend.env
+sudo cp ~/deploy/env/telegram-bot.env.example /etc/feedbridge/telegram-bot.env
 sudo chmod 600 /etc/feedbridge/*.env
-sudoedit /etc/feedbridge/api.env /etc/feedbridge/bot.env
+sudoedit /etc/feedbridge/backend.env /etc/feedbridge/telegram-bot.env
 ```
 
 | File | Set these | Leave as in the example |
 |---|---|---|
-| `/etc/feedbridge/api.env` | `DB_PASSWORD` (the Postgres password you typed), `REDIS_PASSWORD` (from `requirepass`), optional `YOUTUBE_API_KEY` | `LISTEN_ADDR=127.0.0.1:50051`, loopback hosts |
-| `/etc/feedbridge/bot.env` | `TELEGRAM_BOT_TOKEN`, same `DB_PASSWORD` | `API_ADDR=127.0.0.1:50051`, `WORKER_COUNT=3` |
+| `/etc/feedbridge/backend.env` | `DB_PASSWORD` (the Postgres password you typed), `REDIS_PASSWORD` (from `requirepass`), optional `YOUTUBE_API_KEY` | `LISTEN_ADDR=127.0.0.1:50051`, loopback hosts |
+| `/etc/feedbridge/telegram-bot.env` | `TELEGRAM_BOT_TOKEN`, same `DB_PASSWORD` | `API_ADDR=127.0.0.1:50051`, `WORKER_COUNT=3` |
 
 Do **not** reuse the laptop Redis/Postgres passwords; the VM generated new ones.
 
@@ -207,16 +207,16 @@ Or do it step by step:
 
 ```bash
 # repo root
-make -C API build-linux
-make -C bot build-linux
-gcloud compute scp API/feedbridge-linux-amd64 bot/feedbridge-bot-linux-amd64 \
+make -C backend build-linux
+make -C telegram-bot build-linux
+gcloud compute scp backend/feedbridge-linux-amd64 telegram-telegram-bot/feedbridge-bot-linux-amd64 \
   feedbridge:/tmp/ --zone=us-central1-a
 gcloud compute ssh feedbridge --zone=us-central1-a --command \
   'sudo install -m 0755 -o feedbridge -g feedbridge /tmp/feedbridge-linux-amd64 /opt/feedbridge/feedbridge &&
    sudo install -m 0755 -o feedbridge -g feedbridge /tmp/feedbridge-bot-linux-amd64 /opt/feedbridge/feedbridge-bot'
 ```
 
-Or, if your SSH user@IP works with the same keys: `make -C API deploy HOST=YOU@EXTERNAL_IP` and the same for `bot`.
+Or, if your SSH user@IP works with the same keys: `make -C backend deploy HOST=YOU@EXTERNAL_IP` and the same for `bot`.
 
 ### 5. Start
 

@@ -34,7 +34,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: API/Dockerfile
+      dockerfile: backend/Dockerfile
     environment:
       LISTEN_ADDR: ":50051"
       DB_HOST: postgres
@@ -55,7 +55,7 @@ services:
   bot:
     build:
       context: .
-      dockerfile: bot/Dockerfile
+      dockerfile: telegram-bot/Dockerfile
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set in env}
       API_ADDR: api:50051

@@ -6,7 +6,7 @@ set -euo pipefail
 HOST="${HOST:?usage: HOST=you@EXTERNAL_IP $0}"
 REMOTE_DIR=/opt/feedbridge
 
-cd "$(dirname "$0")/../bot"
+cd "$(dirname "$0")/../telegram-bot"
 
 echo "==> building (linux/amd64, static)"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" \

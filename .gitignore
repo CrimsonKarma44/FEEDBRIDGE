@@ -15,7 +15,10 @@ vendor/
 
 # Project binaries
 feedbridge
-bot/feedbridge-bot
+backend/feedbridge
+backend/feedbridge-linux-amd64
+telegram-bot/feedbridge-bot
+telegram-bot/feedbridge-bot-linux-amd64
 bin/
 dist/
 

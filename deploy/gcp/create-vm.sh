@@ -61,8 +61,8 @@ On the VM:
   cd ~/deploy && sudo ./setup-server.sh
 
 From this machine, after env files are filled:
-  make -C API deploy HOST=\$(whoami)@${IP}
-  make -C bot deploy HOST=\$(whoami)@${IP}
+  make -C backend deploy HOST=\$(whoami)@${IP}
+  make -C telegram-bot deploy HOST=\$(whoami)@${IP}
 
 Do not compile on the VM. Do not open 50051, 5432, or 6379.
 EOF
