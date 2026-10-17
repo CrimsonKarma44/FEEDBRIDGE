@@ -100,6 +100,10 @@ go run .
 | `/removefeed <url>` | Unsubscribe by URL |
 | `/disablefeed <url>` / `/enablefeed <url>` | Pause / resume a subscription without deleting it |
 | `/interval <duration>` | Refresh cadence for all feeds in this chat (`15m`, `1h`, ... clamped to 5 m - 24 h) |
+| `/backup` | Send this chat's feeds as `feedbridge-backup.json` |
+| `/restore` | Apply a backup file to this chat: subscribe to feeds it does not already follow, and match each feed's enabled flag |
+
+`/restore` does not remove feeds that are missing from the file, and it does not send the latest-item preview. Send the file with the caption `/restore`, or send `/restore` and then the file within 10 minutes.
 
 Groups & communities: subscriptions are keyed by chat ID, so adding the bot via
 `t.me/feed_bridge_bot?startgroup=true` and running `/addfeed` inside the group just works.

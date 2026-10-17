@@ -119,6 +119,9 @@ func main() {
 	handle("/disablefeed", feedHandler.DisableFeed)
 	handle("/enablefeed", feedHandler.EnableFeed)
 	handle("/interval", feedHandler.SetInterval)
+	handle("/backup", feedHandler.Backup)
+	handle("/restore", feedHandler.Restore)
+	handle(tele.OnDocument, feedHandler.OnDocument)
 
 	handle("\ffd_view", feedHandler.OnViewBtn)
 	handle("\ffd_on", feedHandler.OnEnableBtn)

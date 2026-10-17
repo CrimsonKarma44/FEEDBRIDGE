@@ -23,7 +23,8 @@ const (
 )
 
 type FeedHandler struct {
-	API *grpcclient.Client
+	API      *grpcclient.Client
+	restores restoreSlots
 }
 
 func telegramDest(chatID int64) (platform, externalID string) {

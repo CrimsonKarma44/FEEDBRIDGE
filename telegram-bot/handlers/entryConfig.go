@@ -24,6 +24,8 @@ Get new posts from any website delivered straight into this chat - RSS, Atom and
 /interval 30m - delivery frequency
 /disablefeed &lt;url&gt; / /enablefeed &lt;url&gt;
 /removefeed &lt;url&gt;
+/backup - download this chat's feeds
+/restore - add feeds from a backup file
 
 <i>New subscriptions show their latest 3 items right away.</i>`
 
@@ -34,6 +36,8 @@ Anyone can read along, admins manage:
 /addfeed &lt;url&gt; - add a feed for everyone here
 /listfeed - see what this group follows
 /interval 30m - adjust frequency
+/backup - download this chat's feeds
+/restore - add feeds from a backup file
 
 <i>Add a feed to try it out.</i>`
 

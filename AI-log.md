@@ -48,3 +48,24 @@
 - Deployed to GCE VM `feedbridge` (35.239.193.103): copied binaries, installed to `/opt/feedbridge/`, restarted systemd services.
 - First transfer via `cat >` pipe corrupted the binaries (truncated), causing SIGSEGV. Re-transferred with `gcloud compute scp`.
 - Both services now active and healthy. DB migration (AutoMigrate + BackfillDestinations) ran successfully on API startup.
+
+## 2026-10-08 09:39
+<!-- id: 88a3f621-916c-4bca-acc6-9f5850ccdb15 -->
+- Model: clixad CLI
+- Commit `3ee0249` — "Rename API and bot directories to backend and telegram-bot".
+- Renamed `API/` → `backend/` and `bot/` → `telegram-bot/` across 83 files, updating module paths, import statements, Dockerfiles, Makefiles, deploy scripts, systemd units, env example files (`api.env.example` → `backend.env.example`, `bot.env.example` → `telegram-bot.env.example`), `docker-compose.example.yml`, `.gitignore`, `README.md`, and existing AI-log.md references.
+
+## 2026-10-08 09:50
+<!-- id: b35244b3-3ff2-4f3a-9206-c502247cb42d -->
+- Model: Cline (claude-sonnet via VS Code extension)
+- No project code changes. Reviewed the project to build context: architecture (telegram-bot ⇄ gRPC ⇄ backend → Postgres + Redis), deployment (GCP e2-micro, systemd), and current git state.
+- Verified both modules build (`go build ./...`) and all tests pass (`go test ./...`) — backend and telegram-bot green.
+- Added this AI-log entry for the clixad rename commit and this session.
+
+## 2026-10-17 17:24
+- `telegram-bot/handlers/backup.go` — `/backup` sends this chat's feeds as JSON; `/restore` subscribes to missing feeds and matches enabled flags.
+- `telegram-bot/handlers/backup_test.go` — cover backup parse, restore planning, and the 10-minute wait.
+- `telegram-bot/handlers/feed.go` — hold the in-memory restore wait on FeedHandler.
+- `telegram-bot/main.go` — register `/backup`, `/restore`, and document uploads.
+- `telegram-bot/handlers/entryConfig.go` — list the backup commands in `/start`.
+- `README.md` — document `/backup` and `/restore`.
