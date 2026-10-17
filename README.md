@@ -4,6 +4,14 @@ Intelligent RSS-to-Chat Delivery Platform
 
 FEEDBRIDGE detects syndication feeds (RSS / Atom / JSON Feed) for any site URL, caches them, and delivers new posts as Telegram messages to private chats, groups, and communities on a schedule.
 
+Product drafts and artwork are under `docs/`:
+
+| Path | What it is |
+|---|---|
+| `docs/prd/` | PRD v1.0 drafts dated 2026-07-13 and 2026-07-17 |
+| `docs/proposals/` | AI product and technical proposal, plus v1.1 |
+| `docs/images/` | Logo, launch graphic, and an RSS/Atom element map |
+
 ## Architecture
 
 ```
@@ -18,8 +26,8 @@ Telegram  <-->  telegram-bot/  --gRPC-->  backend/  -->  Postgres + Redis
 
 | Component | What it does |
 |---|---|
-| `backend/` | Go gRPC server on `LISTEN_ADDR` (default `127.0.0.1:50051`). Feed detection via [rss_detector](https://github.com/CrimsonKarma44/rss_detector), link registry + subscriptions in Postgres (GORM), Redis caching with TTLs (feed items 10 min, feed links 24 h, negative results 5 min), singleflight coalescing of identical requests, panic-recovery + logging interceptors, gRPC health checks & reflection. Owns the scheduler: `ListDue` → worker fetch → dedupe → `AckCursor`. |
-| `telegram-bot/` | Telebot v4 client. No direct database access — all subscription operations go through gRPC to the API. Per-chat commands, admin-only management inside groups, delivery formatting (individual messages for ≤5 items, digest for larger batches). Worker pool size is `WORKER_COUNT` (default 10; use 3 on the 1 GB e2-micro). |
+| `backend/` | Go gRPC server on `LISTEN_ADDR` (default `127.0.0.1:50051`). Feed detection via [rss_detector](https://github.com/CrimsonKarma44/rss_detector), link registry + subscriptions in Postgres (GORM), Redis caching with TTLs (feed items 10 min, feed links 24 h, negative results 5 min), singleflight coalescing of identical requests, panic-recovery + logging interceptors, gRPC health checks & reflection. Exposes `ListDue` and `AckCursor` for the bot's scheduler. It does not start that loop. |
+| `telegram-bot/` | Telebot v4 client. No direct database access — subscription operations go through gRPC. Runs the scheduler (30s tick): `ListDue` → worker pool → fetch → dedupe → deliver → `AckCursor`. Per-chat commands, admin-only management inside groups, delivery formatting (individual messages for ≤5 items, digest for larger batches). Worker pool size is `WORKER_COUNT` (default 10 when unset; `deploy/env/telegram-bot.env.example` sets 3 for the 1 GB e2-micro). |
 
 ### API services (`handler` package)
 
@@ -60,7 +68,7 @@ cp telegram-bot/.env.example telegram-bot/.env      # fill in TELEGRAM_BOT_TOKEN
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `DB_HOST` `DB_USER` `DB_PASSWORD` `DB_NAME` `DB_PORT` | API (bot env reads them but they're unused now) | PostgreSQL connection |
+| `DB_HOST` `DB_USER` `DB_PASSWORD` `DB_NAME` `DB_PORT` | API. The bot copies them and does not connect | PostgreSQL connection |
 | `REDIS_ADDR` `REDIS_PASSWORD` `REDIS_DB` `REDIS_PROTOCOL` | API | Redis cache backend |
 | `LISTEN_ADDR` | API | gRPC bind address (default `127.0.0.1:50051`) |
 | `API_ADDR` | bot | gRPC endpoint of the API (default `localhost:50051`) |
@@ -69,7 +77,7 @@ cp telegram-bot/.env.example telegram-bot/.env      # fill in TELEGRAM_BOT_TOKEN
 | `YOUTUBE_API_KEY` | API | Optional; prefers Data API v3 in the YouTube resolver |
 | `FEEDBRIDGE_ALLOW_PRIVATE_FETCH` | API | Set to `1` to allow fetching LAN/loopback feed URLs (off by default) |
 
-> The bot's local `telegram-bot/store/store.go` is **unused** — all subscription state lives in the API's Postgres. The bot's `.env.example` still lists DB vars only for backward compatibility; they are not read at runtime.
+> The bot's local `telegram-bot/store/store.go` is **unused** — all subscription state lives in the API's Postgres. Startup still copies `DB_*` into `model.ENV`. Nothing in the bot opens a database connection.
 
 > Note: `.env` files are gitignored — never commit them.
 
@@ -117,8 +125,8 @@ In groups only **admins** can manage feeds.
 - `backend/youtube/` resolves any YouTube video/handle/channel URL to its Atom feed (Innertube first, Data API v3 when a key is set).
 - Cache layers: repeat `GetFeed` calls within the item TTL are served entirely from Redis.
 - Subscriptions are keyed on the **resolved feed URL** (not the input URL): adding any page of a site whose feed you already follow answers "already subscribed" instead of creating a duplicate.
-- The scheduler runs inside the API (`ListDue` → worker pool → `AckCursor`). The bot only formats and delivers results, leaving the fetch/scheduling loop to the API.
-- `telegram-bot/store/store.go` is **legacy** and not imported. The bot has no direct Postgres dependency at runtime; all CRUD goes through gRPC to the API.
+- The 30s scheduler and worker pool run in the bot (`telegram-bot/main.go`). Each tick calls the API's `ListDue`, fetches due feeds, dedupes, delivers, then `AckCursor`. The API stores the rows and does not start that loop.
+- `telegram-bot/store/store.go` is **legacy** and not imported. The bot copies `DB_*` into `model.ENV` and never connects; subscription CRUD goes through gRPC.
 
 ## Deployment (Google Cloud Always Free — e2-micro, $0)
 
@@ -191,7 +199,9 @@ sudoedit /etc/feedbridge/backend.env /etc/feedbridge/telegram-bot.env
 
 Do **not** reuse the laptop Redis/Postgres passwords; the VM generated new ones.
 
-Note: The bot's env file on the VM still includes `DB_*` variables but the bot no longer connects to Postgres directly.
+Note: The bot's env file still includes `DB_*` variables. The bot copies them and does not connect to Postgres.
+
+The VM already running (`feedbridge`, `us-central1-a`) was bootstrapped before the directory rename. Its units still load `/etc/feedbridge/api.env` and `/etc/feedbridge/bot.env`, and that bot env sets `WORKER_COUNT=5`, so the log line is `worker pool size 5`. The unit files in `deploy/` load `/etc/feedbridge/backend.env` and `/etc/feedbridge/telegram-bot.env`. Installing those units on that VM without renaming the env files to match makes systemd look for files that are not there. A new VM should use the names in `deploy/`. The bot binary on the running VM includes `/backup` and `/restore`. The API binary there was not replaced in that deploy.
 
 ```bash
 sudo cp ~/deploy/feedbridge-*.service /etc/systemd/system/
@@ -213,14 +223,14 @@ Or do it step by step:
 # repo root
 make -C backend build-linux
 make -C telegram-bot build-linux
-gcloud compute scp backend/feedbridge-linux-amd64 telegram-telegram-bot/feedbridge-bot-linux-amd64 \
+gcloud compute scp backend/feedbridge-linux-amd64 telegram-bot/feedbridge-bot-linux-amd64 \
   feedbridge:/tmp/ --zone=us-central1-a
 gcloud compute ssh feedbridge --zone=us-central1-a --command \
   'sudo install -m 0755 -o feedbridge -g feedbridge /tmp/feedbridge-linux-amd64 /opt/feedbridge/feedbridge &&
    sudo install -m 0755 -o feedbridge -g feedbridge /tmp/feedbridge-bot-linux-amd64 /opt/feedbridge/feedbridge-bot'
 ```
 
-Or, if your SSH user@IP works with the same keys: `make -C backend deploy HOST=YOU@EXTERNAL_IP` and the same for `bot`.
+Or, if your SSH user@IP works with the same keys: `make -C backend deploy HOST=YOU@EXTERNAL_IP` and `make -C telegram-bot deploy HOST=YOU@EXTERNAL_IP`. On the VM that is already up, deploy the bot only when the API binary does not need to change. `deploy/deploy-bot.sh` replaces `/opt/feedbridge/feedbridge-bot` and restarts `feedbridge-bot`. It does not install the renamed unit files.
 
 ### 5. Start
 
@@ -233,7 +243,7 @@ sudo journalctl -u feedbridge-api -u feedbridge-bot -n 30 --no-pager
 ss -lntp | grep 50051    # must be 127.0.0.1:50051, not 0.0.0.0
 ```
 
-Healthy logs: API `listening on 127.0.0.1:50051`, bot `Bot started` and `worker pool size 3`.
+Healthy logs: API `listening on 127.0.0.1:50051`, bot `Bot started` and `worker pool size N`. `N` is `WORKER_COUNT` from the bot env file: 3 in `deploy/env/telegram-bot.env.example`, 10 if the variable is unset, 5 on the VM that is already running.
 
 ### 6. Migrate local subscriptions (optional)
 
@@ -265,9 +275,9 @@ Qualify tables as `public.…` after the dump: it sets `search_path` empty. Skip
 ### 7. Ops
 
 - Cut over: stop the laptop bot, then `/listfeed` in Telegram.
-- Backups: `sudo cp ~/deploy/backup-db.sh /opt/feedbridge/backup-db.sh` and root cron `0 4 * * * /opt/feedbridge/backup-db.sh >> /var/log/feedbridge-backup.log 2>&1` (keeps 7 dumps).
+- Server backups: `sudo cp ~/deploy/backup-db.sh /opt/feedbridge/backup-db.sh` and root cron `0 4 * * * /opt/feedbridge/backup-db.sh >> /var/log/feedbridge-backup.log 2>&1` (keeps 7 dumps of `subscriptions` and `link_repositories`). Chat export is separate: `/backup` and `/restore` in Telegram.
 - Redeploy binaries: repeat step 4, then `sudo systemctl restart feedbridge-api feedbridge-bot`.
-- RAM: `free -h`. Stay at `WORKER_COUNT=3` on the micro; move to a paid `e2-small` if you sit near 1 GB.
+- RAM: `free -h`. The example env keeps `WORKER_COUNT=3` on the micro. The running VM's `bot.env` sets `5`. Move to a paid `e2-small` if you sit near 1 GB.
 - Never open `50051`, `5432`, or `6379` on the GCP firewall or UFW.
 
 ## Docker (optional, local/dev only)

@@ -69,3 +69,12 @@
 - `telegram-bot/main.go` — register `/backup`, `/restore`, and document uploads.
 - `telegram-bot/handlers/entryConfig.go` — list the backup commands in `/start`.
 - `README.md` — document `/backup` and `/restore`.
+
+## 2026-10-17 17:45
+- `README.md` — scheduler lives in the bot; document the running VM's `api.env`/`bot.env` and `WORKER_COUNT=5`; fix the bot binary copy path.
+
+## 2026-10-17 17:47
+- `docs/prd/` — moved both PRD PDFs out of the repo root and named them by draft date.
+- `docs/proposals/` — moved the proposal `.docx` files out of the repo root.
+- `docs/images/` — moved the logo, launch graphic, and RSS/Atom map out of the repo root.
+- `README.md` — point at `docs/`.
