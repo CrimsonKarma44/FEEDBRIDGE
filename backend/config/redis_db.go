@@ -40,6 +40,11 @@ func (r *RedisDB) Get(ctx context.Context, key string) (string, error) {
 	return val, nil
 }
 
+// GetDel returns the value at key and deletes it in one step (Redis 6.2+).
+func (r *RedisDB) GetDel(ctx context.Context, key string) (string, error) {
+	return r.db.GetDel(ctx, key).Result()
+}
+
 func (r *RedisDB) Set(ctx context.Context, key string, value string, ttl time.Duration) error {
 	return r.db.Set(ctx, key, value, ttl).Err()
 }

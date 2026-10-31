@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/CrimsonKarma44/FEEDBRIDGE/backend/config"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/backend/models"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/backend/service"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/backend/utility"
@@ -39,6 +40,27 @@ func (d ResolverDetector) Detect(ctx context.Context, rawURL string) ([]service.
 		}
 	}
 	return out, nil
+}
+
+// detectCached returns feed links for url from the Redis cache, or runs
+// resolveFeeds on a miss. Concurrent calls for the same url share one
+// detection. cached reports whether the links came from Redis. Callers decide
+// what to store: this function never writes.
+func detectCached(ctx context.Context, r *config.RedisDB, yt *youtube.Resolver, url string) (links []rssdetector.FeedLink, cached bool, err error) {
+	type result struct {
+		links  []rssdetector.FeedLink
+		cached bool
+	}
+	v, err, _ := flightGroup.Do(detectCachedFlightKey+url, func() (any, error) {
+		if hit, ok := loadCachedFeedLinks(ctx, r, url); ok {
+			log.Printf("cache hit for %s, skipping detection", url)
+			return result{links: hit, cached: true}, nil
+		}
+		found, derr := resolveFeeds(ctx, yt, url)
+		return result{links: found}, derr
+	})
+	res, _ := v.(result)
+	return res.links, res.cached, err
 }
 
 // linksFromCached converts a url->type map back into feed links.

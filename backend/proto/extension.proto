@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package handler;
+option go_package = "/extension";
+
+import "google/protobuf/timestamp.proto";
+
+// ExtensionService backs the browser extension. Detect and CreateLinkToken
+// are exposed over HTTP/JSON through the gateway; ResolveLinkToken is gRPC
+// only and is called by the Telegram bot.
+service ExtensionService {
+    // Detect finds feeds for a page URL. Results are cached in Redis only;
+    // nothing is written to Postgres.
+    rpc Detect(DetectRequest) returns (DetectResponse);
+    // CreateLinkToken stores a feed URL under a short, single-use token for a
+    // Telegram deep link (t.me/<bot>?start=add_<token>).
+    rpc CreateLinkToken(CreateLinkTokenRequest) returns (LinkToken);
+    // ResolveLinkToken returns the URL behind a token. consume=true deletes it.
+    rpc ResolveLinkToken(ResolveLinkTokenRequest) returns (ResolveLinkTokenResponse);
+}
+
+message DetectRequest {
+    string url = 1;
+}
+
+message DetectedFeed {
+    string url = 1;
+    string title = 2;
+    // rss, atom, json or unknown.
+    string type = 3;
+    // How the detector found it, e.g. html_link, common_path, platform:youtube.
+    string source = 4;
+}
+
+message DetectResponse {
+    string url = 1;
+    repeated DetectedFeed feeds = 2;
+}
+
+message CreateLinkTokenRequest {
+    string url = 1;
+}
+
+message LinkToken {
+    string token = 1;
+    google.protobuf.Timestamp expires_at = 2;
+}
+
+message ResolveLinkTokenRequest {
+    string token = 1;
+    bool consume = 2;
+}
+
+message ResolveLinkTokenResponse {
+    string url = 1;
+}

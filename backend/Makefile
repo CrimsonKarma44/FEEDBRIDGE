@@ -9,7 +9,7 @@ proto :
 		--go_out=protoAPI --go-grpc_out=protoAPI \
 		--proto_path=proto \
 		--proto_path=/usr/include \
-		proto/subscription.proto proto/feed.proto proto/setUrl.proto
+		proto/subscription.proto proto/feed.proto proto/setUrl.proto proto/extension.proto
 	echo "Generated protoAPI"
 
 update :

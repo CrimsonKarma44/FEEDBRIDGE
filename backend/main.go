@@ -13,6 +13,7 @@ import (
 	config "github.com/CrimsonKarma44/FEEDBRIDGE/backend/config"
 	handler "github.com/CrimsonKarma44/FEEDBRIDGE/backend/handlers"
 	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/Feed"
+	extpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/extension"
 	pb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/setUrl"
 	subpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/subscription"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/backend/service"
@@ -77,6 +78,10 @@ func main() {
 	pb.RegisterSetUrlHandlerServer(s, srvUrl)
 	feedpb.RegisterFeedHandlerServiceServer(s, srvFeed)
 	subpb.RegisterSubscriptionServiceServer(s, &handler.SubscriptionHandler{Subs: subSvc})
+	extpb.RegisterExtensionServiceServer(s, &handler.ExtensionHandler{
+		Feeds:  handler.CachedFinder{Redis: redis, YouTube: ytResolver},
+		Tokens: service.NewLinkTokens(redis),
+	})
 
 	healthSrv := health.NewServer()
 	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)

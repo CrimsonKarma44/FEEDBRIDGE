@@ -11,7 +11,6 @@ import (
 	pb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/setUrl"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/backend/service"
 	"github.com/CrimsonKarma44/FEEDBRIDGE/backend/youtube"
-	rssdetector "github.com/CrimsonKarma44/rss_detector"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -33,17 +32,7 @@ func (h *SetUrlHandler) SetUrl(ctx context.Context, req *pb.SetUrlRequest) (*pb.
 	ctx, cancel := context.WithTimeout(ctx, setTimeout)
 	defer cancel()
 
-	v, err, _ := flightGroup.Do(detectFlightKey+req.GetUrl(), func() (any, error) {
-		if cached, ok := loadCachedFeedLinks(ctx, h.RedisClient, req.GetUrl()); ok {
-			log.Printf("cache hit for %s, skipping detection", req.GetUrl())
-			return cached, nil
-		}
-		return resolveFeeds(ctx, h.YouTube, req.GetUrl())
-	})
-	var links []rssdetector.FeedLink
-	if v != nil {
-		links, _ = v.([]rssdetector.FeedLink)
-	}
+	links, _, err := detectCached(ctx, h.RedisClient, h.YouTube, req.GetUrl())
 	if err != nil {
 		return nil, detectErrorStatus(req.GetUrl(), err)
 	}

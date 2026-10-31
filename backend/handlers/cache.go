@@ -23,13 +23,18 @@ const (
 	orderedLinksPrefix = "feedlinks:"
 	fetchFlightKey     = "fetch:"
 	detectFlightKey    = "detect:"
+	// Separate from detectFlightKey: detectCached shares a different value
+	// type, and singleflight hands one call's result to every waiter.
+	detectCachedFlightKey = "detect-cached:"
 )
 
 // cachedFeedLink is the JSON shape stored under feedlinks:<inputURL>.
 // A list (not a Redis hash) so detector rank is preserved across cache hits.
 type cachedFeedLink struct {
-	URL  string          `json:"url"`
-	Type models.FeedType `json:"type"`
+	URL    string          `json:"url"`
+	Type   models.FeedType `json:"type"`
+	Title  string          `json:"title,omitempty"`
+	Source string          `json:"source,omitempty"`
 }
 
 var flightGroup singleflight.Group
@@ -106,7 +111,19 @@ func (h *FeedHandler) storeItems(ctx context.Context, feedURL, sourceTitle strin
 }
 
 func (h *FeedHandler) negativeExists(ctx context.Context, url string) bool {
-	exists, err := h.RedisClient.Exists(ctx, negativeKeyPrefix+url)
+	return negativeExists(ctx, h.RedisClient, url)
+}
+
+func (h *FeedHandler) markNegative(ctx context.Context, url string) {
+	markNegative(ctx, h.RedisClient, url)
+}
+
+// negativeExists reports whether url was recently found to have no feeds.
+func negativeExists(ctx context.Context, r *config.RedisDB, url string) bool {
+	if r == nil {
+		return false
+	}
+	exists, err := r.Exists(ctx, negativeKeyPrefix+url)
 	if err != nil {
 		log.Println("negative cache lookup failed:", err)
 		return false
@@ -114,8 +131,12 @@ func (h *FeedHandler) negativeExists(ctx context.Context, url string) bool {
 	return exists
 }
 
-func (h *FeedHandler) markNegative(ctx context.Context, url string) {
-	ok, err := h.RedisClient.SetNX(ctx, negativeKeyPrefix+url, 1, negativeTTL)
+// markNegative remembers for negativeTTL that url has no feeds.
+func markNegative(ctx context.Context, r *config.RedisDB, url string) {
+	if r == nil {
+		return
+	}
+	ok, err := r.SetNX(ctx, negativeKeyPrefix+url, 1, negativeTTL)
 	if err != nil {
 		log.Println("negative cache store failed:", err)
 		return
@@ -132,7 +153,7 @@ func orderedLinksKey(url string) string {
 func feedLinksToCached(links []rssdetector.FeedLink) []cachedFeedLink {
 	out := make([]cachedFeedLink, len(links))
 	for i, l := range links {
-		out[i] = cachedFeedLink{URL: l.URL, Type: models.FeedType(l.Type)}
+		out[i] = cachedFeedLink{URL: l.URL, Type: models.FeedType(l.Type), Title: l.Title, Source: string(l.Source)}
 	}
 	return out
 }
@@ -143,7 +164,12 @@ func cachedToFeedLinks(cached []cachedFeedLink) []rssdetector.FeedLink {
 		if c.URL == "" {
 			continue
 		}
-		out = append(out, rssdetector.FeedLink{URL: c.URL, Type: rssdetector.FeedType(c.Type)})
+		out = append(out, rssdetector.FeedLink{
+			URL:    c.URL,
+			Type:   rssdetector.FeedType(c.Type),
+			Title:  c.Title,
+			Source: rssdetector.DiscoverSource(c.Source),
+		})
 	}
 	return out
 }
