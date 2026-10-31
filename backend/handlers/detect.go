@@ -95,9 +95,10 @@ func resolveFeeds(ctx context.Context, yt *youtube.Resolver, rawURL string) ([]r
 				title = ch.ID
 			}
 			return []rssdetector.FeedLink{{
-				URL:   ch.RSSURL,
-				Title: title,
-				Type:  rssdetector.FeedTypeAtom,
+				URL:    ch.RSSURL,
+				Title:  title,
+				Type:   rssdetector.FeedTypeAtom,
+				Source: rssdetector.PlatformSource("youtube"),
 			}}, nil
 		}
 	}
