@@ -2,15 +2,18 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	config "github.com/CrimsonKarma44/FEEDBRIDGE/backend/config"
+	"github.com/CrimsonKarma44/FEEDBRIDGE/backend/gateway"
 	handler "github.com/CrimsonKarma44/FEEDBRIDGE/backend/handlers"
 	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/Feed"
 	extpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/extension"
@@ -97,8 +100,40 @@ func main() {
 		}
 	}()
 
+	// Optional HTTP/JSON gateway for the browser extension. Off unless
+	// HTTP_LISTEN_ADDR is set; on the VM it binds loopback behind Caddy.
+	var httpSrv *http.Server
+	if httpAddr := os.Getenv("HTTP_LISTEN_ADDR"); httpAddr != "" {
+		gw, gerr := gateway.New(ctx, gateway.DialTarget(listenAddr), gateway.DefaultConfig())
+		if gerr != nil {
+			logger.Fatalf("http gateway: %v", gerr)
+		}
+		httpSrv = &http.Server{
+			Addr:              httpAddr,
+			Handler:           gw,
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      40 * time.Second, // detection can take up to 30s
+			IdleTimeout:       60 * time.Second,
+		}
+		go func() {
+			logger.Printf("http gateway listening on %s", httpAddr)
+			if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Fatalf("http gateway failed: %v", err)
+			}
+		}()
+	}
+
 	<-ctx.Done()
 	logger.Println("shutdown signal received")
+
+	if httpSrv != nil {
+		sctx, scancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := httpSrv.Shutdown(sctx); err != nil {
+			logger.Printf("http gateway shutdown: %v", err)
+		}
+		scancel()
+	}
 
 	done := make(chan struct{})
 	go func() {

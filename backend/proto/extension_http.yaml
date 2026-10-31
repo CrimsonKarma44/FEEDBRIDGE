@@ -1,0 +1,13 @@
+# HTTP routes for the grpc-gateway, kept outside extension.proto so the proto
+# stays plain gRPC. Methods not listed here (ResolveLinkToken) get no HTTP
+# route and stay reachable over gRPC only.
+type: google.api.Service
+config_version: 3
+
+http:
+  rules:
+    - selector: handler.ExtensionService.Detect
+      get: /v1/detect
+    - selector: handler.ExtensionService.CreateLinkToken
+      post: /v1/link-tokens
+      body: "*"
