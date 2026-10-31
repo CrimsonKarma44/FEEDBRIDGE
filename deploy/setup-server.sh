@@ -73,7 +73,7 @@ cat <<EOF
         sudo chmod 600 /etc/feedbridge/*.env
         sudoedit /etc/feedbridge/backend.env /etc/feedbridge/telegram-bot.env
       Use the REDIS_PASSWORD printed above and the Postgres password
-      you just set. Set TELEGRAM_BOT_TOKEN in bot.env.
+      you just set. Set TELEGRAM_BOT_TOKEN in telegram-bot.env.
       On the e2-micro keep WORKER_COUNT=3.
    2) Install units:
         sudo cp ~/deploy/feedbridge-*.service /etc/systemd/system/

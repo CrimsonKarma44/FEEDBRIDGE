@@ -18,7 +18,7 @@ func (e *ENV) String() string {
 }
 
 func LoadENV() *ENV {
-	// Optional: systemd injects /etc/feedbridge/api.env; a local .env is only
+	// Optional: systemd injects /etc/feedbridge/backend.env; a local .env is only
 	// for interactive `go run`. A missing file is not an error.
 	_ = godotenv.Load()
 
