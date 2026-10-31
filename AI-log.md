@@ -93,3 +93,12 @@
 - `README.md` — replace the VM env-name caveat with the VM's current state.
 - VM `feedbridge`: renamed `/etc/feedbridge/api.env` → `backend.env` and `bot.env` → `telegram-bot.env`, installed `deploy/feedbridge-*.service`, restarted both services. Both active; API on `127.0.0.1:50051`, bot `worker pool size 5`.
 - `docs/plans/browser-extension.md` — new browser-extension plan replacing `.junie/plans/browser-extension-feedbridge.md`: click-only detection, grpc-gateway HTTP layer over the gRPC core, Redis link tokens for Telegram deep links, detection cached in Redis only.
+- `deploy/backup-db.sh` — nightly cleanup after the dump: hard-delete `link_repositories` rows older than 30 days that no subscription uses (by `url` or a `feed_links` key).
+- `README.md` — note the cleanup in the backups line.
+- `backend/proto/extension.proto`, `backend/protoAPI/extension/` — `ExtensionService` (`Detect`, `CreateLinkToken`, `ResolveLinkToken`) and generated stubs; `backend/Makefile` builds it with `make proto`.
+- `backend/handlers/extension.go` — `ExtensionHandler` and `CachedFinder` (Redis cache and negative cache only, no Postgres writes); tests in `extension_test.go`.
+- `backend/handlers/detect.go`, `setUrl.go`, `cache.go` — `detectCached` shared by `SetUrl` and `Detect` with its own singleflight key; cache entries keep feed `title` and `source`; package-level negative-cache helpers.
+- `backend/service/linktoken.go` — `LinkTokens`: 12-char single-use tokens in Redis, 15-minute TTL; tests in `linktoken_test.go`, also checked against a throwaway real Redis.
+- `backend/config/redis_db.go` — `GetDel`.
+- `backend/main.go` — register `ExtensionService`.
+- `docs/plans/browser-extension.md` — step 1 marked done.

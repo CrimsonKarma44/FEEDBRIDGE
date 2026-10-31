@@ -181,7 +181,7 @@ browser-extension/
 
 Each step can ship and be tested on its own.
 
-1. **Backend RPCs:** the `extension.proto` service, `detectCached` refactor, the link-token Redis store, and tests. gRPC only.
+1. ✅ **Backend RPCs** (done 2026-10-31): the `extension.proto` service, `detectCached` refactor, the link-token Redis store, and tests. gRPC only.
 2. **HTTP gateway:** the grpc-gateway codegen, the `HTTP_LISTEN_ADDR` listener, rate limiting, and tests.
 3. **Bot:** the `start=add_<token>` confirm flow, the `subscribeURL` refactor, and tests.
 4. **Deploy:** Caddy, firewall, env, README; ship the binaries with `deploy/deploy-*.sh`.
