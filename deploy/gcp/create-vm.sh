@@ -46,6 +46,17 @@ else
     echo "==> firewall rule feedbridge-ssh already exists"
 fi
 
+if ! gcloud compute firewall-rules describe feedbridge-web --project="$PROJECT" >/dev/null 2>&1; then
+    echo "==> firewall: tcp:80,443 to tag feedbridge (Caddy HTTPS for the extension API)"
+    gcloud compute firewall-rules create feedbridge-web \
+        --project="$PROJECT" \
+        --allow=tcp:80,tcp:443 \
+        --target-tags=feedbridge \
+        --description="HTTPS (Caddy) for the FEEDBRIDGE extension API; port 80 for certificate challenges"
+else
+    echo "==> firewall rule feedbridge-web already exists"
+fi
+
 IP="$(gcloud compute instances describe "$NAME" --zone="$ZONE" --project="$PROJECT" \
     --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
 
@@ -64,5 +75,5 @@ From this machine, after env files are filled:
   make -C backend deploy HOST=\$(whoami)@${IP}
   make -C telegram-bot deploy HOST=\$(whoami)@${IP}
 
-Do not compile on the VM. Do not open 50051, 5432, or 6379.
+Do not compile on the VM. Do not open 50051, 8080, 5432, or 6379.
 EOF

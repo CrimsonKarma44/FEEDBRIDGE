@@ -1,0 +1,9 @@
+# /etc/cron.d/feedbridge — install with:
+#   sudo install -m 0644 ~/deploy/feedbridge.cron /etc/cron.d/feedbridge
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Nightly Postgres dump (keeps 7) plus link_repositories cleanup.
+0 4 * * * root /opt/feedbridge/backup-db.sh >> /var/log/feedbridge-backup.log 2>&1
+# Keep feedbridge.duckdns.org on this VM's IP. Silent unless it fails.
+*/5 * * * * root /opt/feedbridge/duckdns-update.sh >> /var/log/feedbridge-duckdns.log 2>&1

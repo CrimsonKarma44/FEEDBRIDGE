@@ -11,7 +11,7 @@ echo "==> packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get upgrade -y
-apt-get install -y postgresql redis-server ufw openssl curl
+apt-get install -y postgresql redis-server ufw openssl curl caddy
 
 echo "==> service user"
 if ! id -u feedbridge &>/dev/null; then
@@ -57,7 +57,23 @@ echo "==> firewall"
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow OpenSSH
+# Caddy: 443 serves the extension API, 80 answers certificate challenges.
+ufw allow 80/tcp comment "caddy http (acme, redirect)"
+ufw allow 443/tcp comment "caddy https"
 yes | ufw enable
+
+echo "==> caddy (HTTPS for the extension API)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+install -m 0644 "${SCRIPT_DIR}/Caddyfile" /etc/caddy/Caddyfile
+systemctl enable caddy
+systemctl reload caddy || systemctl restart caddy
+
+echo "==> backups, cleanup and DuckDNS cron"
+install -m 0750 -o root -g root "${SCRIPT_DIR}/backup-db.sh" /opt/feedbridge/backup-db.sh
+install -m 0750 -o root -g root "${SCRIPT_DIR}/duckdns-update.sh" /opt/feedbridge/duckdns-update.sh
+[[ -e /etc/feedbridge/duckdns.env ]] ||
+    install -m 0600 -o root -g root "${SCRIPT_DIR}/env/duckdns.env.example" /etc/feedbridge/duckdns.env
+install -m 0644 -o root -g root "${SCRIPT_DIR}/feedbridge.cron" /etc/cron.d/feedbridge
 
 cat <<EOF
 
@@ -82,5 +98,9 @@ cat <<EOF
         make -C backend deploy HOST=\$USER@\$(curl -s ifconfig.me)
         make -C telegram-bot deploy HOST=\$USER@\$(curl -s ifconfig.me)
    4) sudo systemctl enable --now feedbridge-api feedbridge-bot
+   5) Put your DuckDNS token in /etc/feedbridge/duckdns.env:
+        sudoedit /etc/feedbridge/duckdns.env
+      and open tcp:80,443 in the GCP firewall (deploy/gcp/create-vm.sh
+      creates the feedbridge-web rule).
 ============================================================
 EOF

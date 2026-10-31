@@ -1,0 +1,15 @@
+# /etc/caddy/Caddyfile — HTTPS front for the browser-extension API.
+# Caddy gets and renews the Let's Encrypt certificate itself (needs ports
+# 80 and 443 open). Only the HTTP gateway on loopback is exposed; gRPC
+# (50051), Postgres and Redis stay private.
+{
+	# Let's Encrypt only. Ubuntu's Caddy 2.6 falls back to ZeroSSL, which now
+	# rejects it ("caddy_legacy_user_removed"), so the fallback only adds noise.
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
+feedbridge.duckdns.org {
+	encode gzip
+	header -Server
+	reverse_proxy 127.0.0.1:8080
+}

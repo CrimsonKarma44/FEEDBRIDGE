@@ -291,10 +291,21 @@ Qualify tables as `public.…` after the dump: it sets `search_path` empty. Skip
 ### 7. Ops
 
 - Cut over: stop the laptop bot, then `/listfeed` in Telegram.
-- Server backups: `sudo cp ~/deploy/backup-db.sh /opt/feedbridge/backup-db.sh` and root cron `0 4 * * * /opt/feedbridge/backup-db.sh >> /var/log/feedbridge-backup.log 2>&1` (keeps 7 dumps of `subscriptions` and `link_repositories`, then deletes `link_repositories` rows older than 30 days that no subscription uses). Chat export is separate: `/backup` and `/restore` in Telegram.
+- Server backups: `setup-server.sh` installs `/opt/feedbridge/backup-db.sh` and `/etc/cron.d/feedbridge`, which runs it at 04:00 (keeps 7 dumps of `subscriptions` and `link_repositories` in `/var/backups/feedbridge`, then deletes `link_repositories` rows older than 30 days that no subscription uses). Log: `/var/log/feedbridge-backup.log`. Chat export is separate: `/backup` and `/restore` in Telegram.
 - Redeploy binaries: repeat step 4, then `sudo systemctl restart feedbridge-api feedbridge-bot`.
 - RAM: `free -h`. The example env keeps `WORKER_COUNT=3` on the micro. The running VM's `telegram-bot.env` sets `5`. Move to a paid `e2-small` if you sit near 1 GB.
-- Never open `50051`, `5432`, or `6379` on the GCP firewall or UFW.
+- Never open `50051`, `8080`, `5432`, or `6379` on the GCP firewall or UFW. Only `22`, `80` and `443` are open.
+
+### 8. HTTPS for the browser extension
+
+The extension calls `https://feedbridge.duckdns.org`. Caddy terminates TLS and proxies to the API's HTTP gateway on `127.0.0.1:8080`.
+
+1. `HTTP_LISTEN_ADDR=127.0.0.1:8080` in `/etc/feedbridge/backend.env`, then restart `feedbridge-api`.
+2. Open the ports: `./deploy/gcp/create-vm.sh` creates the `feedbridge-web` GCP rule (tcp:80,443 to tag `feedbridge`); `setup-server.sh` adds the UFW rules.
+3. Caddy: `setup-server.sh` installs it with `deploy/Caddyfile`. It gets and renews the Let's Encrypt certificate on its own once 80 and 443 are reachable.
+4. DuckDNS: put the token in `/etc/feedbridge/duckdns.env` (`sudoedit`, mode 600). `/etc/cron.d/feedbridge` runs `duckdns-update.sh` every 5 minutes, so the name follows the VM if its IP changes.
+
+Check: `curl https://feedbridge.duckdns.org/healthz` prints `ok`.
 
 ## Docker (optional, local/dev only)
 
