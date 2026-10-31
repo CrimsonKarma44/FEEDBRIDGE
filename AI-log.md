@@ -78,3 +78,8 @@
 - `docs/proposals/` — moved the proposal `.docx` files out of the repo root.
 - `docs/images/` — moved the logo, launch graphic, and RSS/Atom map out of the repo root.
 - `README.md` — point at `docs/`.
+
+## 2026-10-31 10:43
+<!-- id: 566d8d40-8283-415e-a89c-c8c78a7c02b4 -->
+- `.claude/skills/ai-log/SKILL.md` — `/ai-log` skill that appends or updates this session's entry in `AI-log.md`, following the format of past entries; writes an entry only when the session changed project files.
+- Verified both modules build (`go build ./...`) and all tests pass (`go test ./...`).
