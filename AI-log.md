@@ -102,3 +102,9 @@
 - `backend/config/redis_db.go` — `GetDel`.
 - `backend/main.go` — register `ExtensionService`.
 - `docs/plans/browser-extension.md` — step 1 marked done.
+- `backend/gateway/` — grpc-gateway HTTP/JSON front for `ExtensionService` (`GET /v1/detect`, `POST /v1/link-tokens`, `GET /healthz`) with per-IP rate limit (30/min, burst 10), 4 KB body cap, and `X-Forwarded-For` trusted only from loopback; tests in `gateway_test.go`.
+- `backend/proto/extension_http.yaml` — HTTP routes for the gateway, keeping `extension.proto` free of annotations; `ResolveLinkToken` has no route. `backend/Makefile` generates `protoAPI/extension/extension.pb.gw.go`.
+- `backend/main.go` — start the gateway when `HTTP_LISTEN_ADDR` is set; shut it down before the gRPC server.
+- `backend/go.mod`, `telegram-bot/go.mod` — add grpc-gateway v2.32.0 and `golang.org/x/time` v0.16.0; grpc v1.84.0, protobuf v1.36.12 pulled in by the gateway.
+- `deploy/env/backend.env.example`, `backend/.env.example`, `README.md`, `CLAUDE.md` — document `HTTP_LISTEN_ADDR`, the HTTP routes, and the codegen plugins.
+- Smoke-tested HTTP → gateway → `ExtensionHandler` → throwaway Redis with live detection of go.dev/blog (1.2 s first, 3 ms cached, title kept).
