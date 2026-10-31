@@ -8,6 +8,7 @@ Two Go modules, one repo:
 
 - `backend/` — gRPC API (`127.0.0.1:50051` unless `LISTEN_ADDR` is set). Postgres via GORM, Redis cache. Owns all subscription state: `store/` (rows, migrations), `service/` (subscribe logic), `handlers/` (gRPC services + interceptors), `youtube/` (YouTube URL → feed), `utility/safehttp.go` (SSRF-safe HTTP client).
 - `telegram-bot/` — Telebot v4 client. No database access; everything goes through `grpcclient/`. Runs the 30s scheduler and worker pool (`model/`): `ListDue` → fetch → dedupe → deliver → `AckCursor`.
+- `browser-extension/` — WXT + TypeScript extension for Chrome and Firefox (MV3). Popup scans the active tab on click; talks to the API's HTTP gateway at `https://feedbridge.duckdns.org`. See its README.
 - `deploy/` — systemd units, env examples, VM bootstrap and deploy scripts for one GCP e2-micro.
 
 ## Commands
@@ -20,6 +21,8 @@ make -C backend proto                            # regenerate backend/protoAPI/ 
 make -C backend run                              # local API (needs backend/.env, Postgres, Redis)
 cd telegram-bot && go run .                      # local bot (needs telegram-bot/.env)
 ```
+
+In `browser-extension/`: `npm test`, `npm run check`, `npm run build` / `build:firefox`.
 
 Tests use in-memory SQLite (`backend/internal/testdb`) and bufconn gRPC; they need no running services.
 

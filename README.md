@@ -27,6 +27,7 @@ Telegram  <-->  telegram-bot/  --gRPC-->  backend/  -->  Postgres + Redis
 | Component | What it does |
 |---|---|
 | `backend/` | Go gRPC server on `LISTEN_ADDR` (default `127.0.0.1:50051`). Feed detection via [rss_detector](https://github.com/CrimsonKarma44/rss_detector), link registry + subscriptions in Postgres (GORM), Redis caching with TTLs (feed items 10 min, feed links 24 h, negative results 5 min), singleflight coalescing of identical requests, panic-recovery + logging interceptors, gRPC health checks & reflection. Exposes `ListDue` and `AckCursor` for the bot's scheduler. It does not start that loop. |
+| `browser-extension/` | Chrome and Firefox extension (WXT, Manifest V3). Click the toolbar icon to list a page's feeds, copy or open them, or subscribe through the bot with a single-use link. Calls the API's HTTP gateway only on click. See `browser-extension/README.md`. |
 | `telegram-bot/` | Telebot v4 client. No direct database access — subscription operations go through gRPC. Runs the scheduler (30s tick): `ListDue` → worker pool → fetch → dedupe → deliver → `AckCursor`. Per-chat commands, admin-only management inside groups, delivery formatting (individual messages for ≤5 items, digest for larger batches). Worker pool size is `WORKER_COUNT` (default 10 when unset; `deploy/env/telegram-bot.env.example` sets 3 for the 1 GB e2-micro). |
 
 ### API services (`handler` package)

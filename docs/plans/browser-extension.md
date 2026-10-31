@@ -185,7 +185,7 @@ Each step can ship and be tested on its own.
 2. ✅ **HTTP gateway** (done 2026-10-31; routes defined in `proto/extension_http.yaml` instead of proto annotations): the grpc-gateway codegen, the `HTTP_LISTEN_ADDR` listener, rate limiting, and tests.
 3. ✅ **Bot** (done 2026-10-31; the gateway stubs moved to `protoAPI/extensiongw/` so the bot doesn't depend on grpc-gateway; the `/start` text will mention the extension once it's published): the `start=add_<token>` confirm flow, the `subscribeURL` refactor, and tests.
 4. ✅ **Deploy** (done 2026-10-31: `https://feedbridge.duckdns.org` live behind Caddy with a Let's Encrypt certificate; Caddy uses Let's Encrypt only because Ubuntu's Caddy 2.6 can't use ZeroSSL): Caddy, firewall, env, README; ship the binaries with `deploy/deploy-*.sh`.
-5. **Extension:** scan, popup, subscribe, options, and Vitest tests. Load it unpacked in Chrome and Firefox.
+5. ✅ **Extension** (done 2026-10-31; plain DOM, WXT 0.21.4; Firefox needs 142+ for `data_collection_permissions`; checked in Chromium against the live API): scan, popup, subscribe, options, and Vitest tests. Load it unpacked in Chrome and Firefox.
 6. **Release:**
    - icons and store listings
    - a privacy policy: the URL is sent only when the user scans or subscribes; nothing is stored beyond a 24-hour cache
