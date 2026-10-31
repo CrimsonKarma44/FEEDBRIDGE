@@ -128,3 +128,8 @@
 - `browser-extension/tests/` — 24 Vitest tests (scan in jsdom, API client, links, settings). Also checked in Playwright's Chromium against a local test page and the live API (10/10, light/dark screenshots); `web-ext lint` on the Firefox build: 0 errors, 0 warnings.
 - `README.md`, `CLAUDE.md`, `browser-extension/README.md`, `docs/plans/browser-extension.md` — document the extension; step 5 marked done.
 - `browser-extension/wxt.config.ts` — `build.modulePreload: false`: Vite's `<link rel="modulepreload" crossorigin>` for the chunk shared by popup and options made Chrome log "cross-world extension resource mismatch" and "preloaded but not used" warnings. Browser check now also fails on console warnings from extension pages.
+- `README.md` — bring the overview up to date: intro mentions the extension, architecture diagram shows extension → Caddy → HTTP gateway → gRPC, `docs/plans/` listed, Node 22+ prerequisite, deployment no longer says "nothing is public except SSH" (22/80/443 open), bootstrap and env tables cover Caddy, cron, `HTTP_LISTEN_ADDR` and `duckdns.env`.
+- `telegram-bot/handlers/check.go` — `/check <url>`, and bare links in private chats: `NormalizeURL`, then the API's `Detect`; replies with the feeds (title, type, URL, up to 6) and a Subscribe button per feed carrying a single-use link token (`ck_add`, admins only in groups), or "No feeds found". Shows "Checking…" and edits it with the result. Tests in `check_test.go`.
+- `telegram-bot/grpcclient/client.go` — `Detect` and `CreateLinkToken`.
+- `telegram-bot/main.go`, `telegram-bot/handlers/entryConfig.go` — register `/check`, `OnText` and the button; `/start` texts mention `/check` and sending a link.
+- `README.md` — `/check` in the bot commands.
