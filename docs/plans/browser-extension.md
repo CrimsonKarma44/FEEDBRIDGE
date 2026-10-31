@@ -183,7 +183,7 @@ Each step can ship and be tested on its own.
 
 1. ✅ **Backend RPCs** (done 2026-10-31): the `extension.proto` service, `detectCached` refactor, the link-token Redis store, and tests. gRPC only.
 2. ✅ **HTTP gateway** (done 2026-10-31; routes defined in `proto/extension_http.yaml` instead of proto annotations): the grpc-gateway codegen, the `HTTP_LISTEN_ADDR` listener, rate limiting, and tests.
-3. **Bot:** the `start=add_<token>` confirm flow, the `subscribeURL` refactor, and tests.
+3. ✅ **Bot** (done 2026-10-31; the gateway stubs moved to `protoAPI/extensiongw/` so the bot doesn't depend on grpc-gateway; the `/start` text will mention the extension once it's published): the `start=add_<token>` confirm flow, the `subscribeURL` refactor, and tests.
 4. **Deploy:** Caddy, firewall, env, README; ship the binaries with `deploy/deploy-*.sh`.
 5. **Extension:** scan, popup, subscribe, options, and Vitest tests. Load it unpacked in Chrome and Firefox.
 6. **Release:**

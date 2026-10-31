@@ -108,3 +108,9 @@
 - `backend/go.mod`, `telegram-bot/go.mod` — add grpc-gateway v2.32.0 and `golang.org/x/time` v0.16.0; grpc v1.84.0, protobuf v1.36.12 pulled in by the gateway.
 - `deploy/env/backend.env.example`, `backend/.env.example`, `README.md`, `CLAUDE.md` — document `HTTP_LISTEN_ADDR`, the HTTP routes, and the codegen plugins.
 - Smoke-tested HTTP → gateway → `ExtensionHandler` → throwaway Redis with live detection of go.dev/blog (1.2 s first, 3 ms cached, title kept).
+- `backend/protoAPI/extensiongw/` — gateway stubs moved out of `protoAPI/extension/` (grpc-gateway `standalone` mode) so the bot can import the gRPC stubs without pulling in grpc-gateway; `backend/Makefile` and `backend/gateway/gateway.go` updated.
+- `telegram-bot/handlers/linkstart.go` — `/start add_<token>` from the extension: peeks the token, asks the chat to confirm with Subscribe/Cancel buttons (`lk_add`, `lk_no`, admins only in groups), consumes the token on press, then subscribes; tests in `linkstart_test.go`.
+- `telegram-bot/handlers/feed.go` — `subscribeURL` extracted from `AddFeed` and shared with the deep-link flow.
+- `telegram-bot/grpcclient/client.go` — `ResolveLinkToken` and `IsTokenGone`.
+- `telegram-bot/main.go` — `/start` goes through `StartWithLink`; register the two buttons.
+- `README.md`, `CLAUDE.md`, `docs/plans/browser-extension.md` — document the deep link and the gateway package; step 3 marked done.

@@ -27,7 +27,7 @@ Tests use in-memory SQLite (`backend/internal/testdb`) and bufconn gRPC; they ne
 
 - Both `go.mod` files `replace` `github.com/CrimsonKarma44/rss_detector` with a local checkout at `/home/deus/Documents/code/project/rss_detector`. The bot also `replace`s the backend module with `../backend` and imports its generated stubs.
 - Generated code in `backend/protoAPI/` is committed. Don't hand-edit it. `make proto` regenerates every file; older stubs then differ only in their `source:` header, so revert those and keep just the files you meant to change.
-- `backend/gateway/` serves the extension's HTTP/JSON API (grpc-gateway over the local gRPC server, routes in `proto/extension_http.yaml`). It starts only when `HTTP_LISTEN_ADDR` is set.
+- `backend/gateway/` serves the extension's HTTP/JSON API (grpc-gateway over the local gRPC server, routes in `proto/extension_http.yaml`, generated into `protoAPI/extensiongw/` so the bot never imports grpc-gateway). It starts only when `HTTP_LISTEN_ADDR` is set.
 - Subscriptions are keyed on the resolved feed URL plus `platform` + `external_id`, not on the URL the user typed.
 - Telegram allows one long-poller per bot token. A local `go run` and the VM bot can't run at the same time (`409 Conflict`).
 - Deploy by cross-compiling on the laptop (`make -C <module> build-linux` or `deploy/deploy-*.sh`). Never build on the VM, and never run Docker Compose there (1 GB RAM).
