@@ -1,0 +1,74 @@
+/* Palette from the FeedBridge logo: navy ground, RSS orange, chat blue. */
+:root {
+  --ground: #f4f6f8;
+  --surface: #ffffff;
+  --ink: #13202c;
+  --muted: #5a6b7a;
+  --line: #dbe2e8;
+  --rss: #c55d10;        /* orange, darkened for text contrast on white */
+  --rss-soft: #fdeee2;
+  --tg: #1570b5;         /* chat blue, used for Telegram actions */
+  --tg-ink: #ffffff;
+  --tg-soft: #e3f0fa;
+  --ok: #217a4b;
+  --warn: #9a5b00;
+  --warn-soft: #fbf0dc;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #101f2d;   /* logo navy */
+    --surface: #162a3b;
+    --ink: #e7eef4;
+    --muted: #9fb2c2;
+    --line: #26405a;
+    --rss: #f5893b;
+    --rss-soft: #33281f;
+    --tg: #2c9ee6;
+    --tg-ink: #08131c;
+    --tg-soft: #173650;
+    --ok: #6fd19c;
+    --warn: #f0b860;
+    --warn-soft: #382c16;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font: 13px/1.45 var(--font);
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid var(--tg);
+  outline-offset: 2px;
+}
+code, .mono { font-family: var(--mono); font-size: 12px; }
+
+.btn {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--tg); border-color: var(--tg); color: var(--tg-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.link-btn {
+  border: 0; background: none; padding: 0;
+  color: var(--tg); font-weight: 500;
+}
+.link-btn:hover { text-decoration: underline; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

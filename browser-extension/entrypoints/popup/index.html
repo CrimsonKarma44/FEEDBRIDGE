@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- WXT uses this as the toolbar tooltip (action.default_title). -->
+    <title>Find feeds on this page</title>
+  </head>
+  <body>
+    <header class="top">
+      <img src="/icon/32.png" width="24" height="24" alt="" />
+      <div class="top-text">
+        <strong>FeedBridge</strong>
+        <span id="page-host" class="muted"></span>
+      </div>
+    </header>
+    <main id="content" aria-live="polite">
+      <p class="state">Looking for feeds…</p>
+    </main>
+    <footer class="bottom">
+      <span id="found-by" class="muted"></span>
+      <button id="open-settings" class="link-btn" type="button">Settings</button>
+    </footer>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

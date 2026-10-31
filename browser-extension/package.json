@@ -1,0 +1,24 @@
+{
+  "name": "feedbridge-extension",
+  "description": "Find the RSS, Atom and JSON feeds on a page and subscribe through the FeedBridge Telegram bot.",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "postinstall": "wxt prepare"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.3",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0",
+    "wxt": "0.21.4"
+  }
+}

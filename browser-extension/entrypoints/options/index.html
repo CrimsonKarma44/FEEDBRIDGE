@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FeedBridge settings</title>
+    <meta name="manifest.open_in_tab" content="true" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="head">
+        <img src="/icon/48.png" width="40" height="40" alt="" />
+        <div>
+          <h1>FeedBridge settings</h1>
+          <p class="muted">Most people never need to change these.</p>
+        </div>
+      </header>
+
+      <form id="form" novalidate>
+        <label for="api">FeedBridge server</label>
+        <input id="api" name="api" type="url" autocomplete="off" spellcheck="false" />
+        <p class="hint">Used only when you press <em>Scan with FeedBridge</em>, scan YouTube or GitHub, or subscribe.</p>
+
+        <label for="bot">Telegram bot</label>
+        <div class="prefixed">
+          <span aria-hidden="true">@</span>
+          <input id="bot" name="bot" type="text" autocomplete="off" spellcheck="false" />
+        </div>
+        <p class="hint">Subscribe links open this bot.</p>
+
+        <p id="error" class="error" role="alert" hidden></p>
+        <div class="actions">
+          <button class="btn primary" type="submit">Save</button>
+          <button id="reset" class="btn" type="button">Restore defaults</button>
+          <span id="saved" class="saved" role="status"></span>
+        </div>
+      </form>
+
+      <section class="privacy">
+        <h2>What FeedBridge sees</h2>
+        <p>Nothing runs until you click the toolbar icon. The page’s own feed links are read in your browser. FeedBridge’s server only gets a page’s address when you press <em>Scan with FeedBridge</em>, open the extension on YouTube or GitHub, or subscribe to a feed. Results are cached for up to a day so repeat lookups are quick. Pages you don’t ask about are never sent.</p>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

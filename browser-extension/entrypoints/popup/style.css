@@ -1,0 +1,66 @@
+body { width: 380px; overflow-x: hidden; }
+
+.top {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.top-text { display: flex; flex-direction: column; min-width: 0; }
+.top-text strong { font-size: 14px; }
+.muted { color: var(--muted); }
+#page-host { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#content { padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 12px; max-height: 460px; overflow-y: auto; }
+.state { margin: 6px 0; color: var(--muted); }
+.state strong { color: var(--ink); display: block; margin-bottom: 2px; }
+
+.group h2 {
+  margin: 0 0 6px;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted);
+}
+.group h2 .count { color: var(--rss); margin-left: 4px; }
+.feeds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.feed {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.feed-title { font-weight: 600; overflow-wrap: anywhere; }
+.feed-url { color: var(--muted); overflow-wrap: anywhere; }
+.feed-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.feed-actions .btn.primary { margin-left: auto; }
+
+.subscribe-panel {
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.subscribe-panel p { margin: 0; color: var(--muted); }
+.subscribe-panel .row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.notice {
+  border-radius: 6px; padding: 8px 10px;
+  background: var(--warn-soft); color: var(--warn);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.notice code {
+  display: block; padding: 6px 8px; border-radius: 4px;
+  background: var(--surface); color: var(--ink); overflow-wrap: anywhere;
+}
+.ok { color: var(--ok); }
+
+.empty { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.empty p { margin: 0; color: var(--muted); }
+
+.bottom {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
