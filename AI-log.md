@@ -137,3 +137,5 @@
 - `.github/workflows/extension-release.yml` — on `extension-v*` tags: check tag vs `package.json`, type-check, test, zip both browsers, optional Mozilla signing when `AMO_JWT_ISSUER`/`AMO_JWT_SECRET` secrets exist, checksums, publish release. Shell steps dry-run locally.
 - `browser-extension/RELEASE_NOTES.md` — release notes template with `{{VERSION}}`.
 - `browser-extension/README.md`, `README.md` — install from Releases and how to cut a release.
+- `browser-extension/README.md` — rewritten as a user guide built on the five screenshots in `docs/images/` (`on-ext-detection.png`, `subscribe option.png`, `extensive-scan-prompt.png`, `no-feed-found.png`, `ext-setting.png`): using it step by step, install, privacy; developer notes (how it works, develop, release, layout) moved below.
+- `README.md` — new "Browser extension" section with the detection screenshot and a link to the extension README; intro links to it; docs table mentions the screenshots. All relative links and image paths checked.

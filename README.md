@@ -2,7 +2,7 @@
 
 Intelligent RSS-to-Chat Delivery Platform
 
-FEEDBRIDGE detects syndication feeds (RSS / Atom / JSON Feed) for any site URL, caches them, and delivers new posts as Telegram messages to private chats, groups, and communities on a schedule. A Chrome and Firefox extension finds the feeds on the page you're viewing and subscribes in a couple of taps.
+FEEDBRIDGE detects syndication feeds (RSS / Atom / JSON Feed) for any site URL, caches them, and delivers new posts as Telegram messages to private chats, groups, and communities on a schedule. A [browser extension](#browser-extension) for Chrome and Firefox finds the feeds on the page you're viewing and subscribes in a couple of taps.
 
 Product drafts and artwork are under `docs/`:
 
@@ -10,7 +10,7 @@ Product drafts and artwork are under `docs/`:
 |---|---|
 | `docs/prd/` | PRD v1.0 drafts dated 2026-07-13 and 2026-07-17 |
 | `docs/proposals/` | AI product and technical proposal, plus v1.1 |
-| `docs/images/` | Logo, launch graphic, and an RSS/Atom element map |
+| `docs/images/` | Logo, launch graphic, RSS/Atom element map, and browser extension screenshots |
 | `docs/plans/` | Browser extension plan and its delivery status |
 
 ## Architecture
@@ -144,6 +144,20 @@ Subscribe links from the browser extension open the bot with `/start add_<token>
 Groups & communities: subscriptions are keyed by chat ID, so adding the bot via
 `t.me/feed_bridge_bot?startgroup=true` and running `/addfeed` inside the group just works.
 In groups only **admins** can manage feeds.
+
+## Browser extension
+
+<img src="docs/images/on-ext-detection.png" alt="FeedBridge popup on a GitHub repository listing its Commits, Releases and Tags Atom feeds with Copy URL, Open and Subscribe buttons" width="320" align="right">
+
+The FeedBridge extension for Chrome, Edge, Brave and Firefox finds the feeds on the page you're viewing:
+
+- **Click the toolbar icon** to see the page's RSS, Atom and JSON feeds, grouped by type, with a count on the icon. Nothing runs before you click.
+- **Copy, open or subscribe.** **Subscribe** opens Telegram with a single-use link, and the bot asks your chat or group to confirm.
+- **Deeper checks.** YouTube and GitHub are looked up through the FeedBridge server automatically. For other pages without feed links, **Scan with FeedBridge** asks the server to check further, and only then is the page's address sent.
+
+**[Download it from Releases](https://github.com/CrimsonKarma44/FEEDBRIDGE/releases)**. The [extension README](browser-extension/README.md) has a step-by-step walkthrough with screenshots, install instructions for each browser, privacy details, and how to build and release it.
+
+<br clear="right">
 
 ## Development notes
 
