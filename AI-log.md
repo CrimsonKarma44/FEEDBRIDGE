@@ -90,3 +90,5 @@
 - `CLAUDE.md` — layout, commands, deploy cautions, and the AI-log rule.
 - Commits `6cc7d42`, `604a590`, `07c3509`, `23c1609`.
 - Verified both modules build, vet, and pass tests (`go build ./... && go vet ./... && go test ./...`).
+- `README.md` — replace the VM env-name caveat with the VM's current state.
+- VM `feedbridge`: renamed `/etc/feedbridge/api.env` → `backend.env` and `bot.env` → `telegram-bot.env`, installed `deploy/feedbridge-*.service`, restarted both services. Both active; API on `127.0.0.1:50051`, bot `worker pool size 5`.

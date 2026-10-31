@@ -201,7 +201,7 @@ Do **not** reuse the laptop Redis/Postgres passwords; the VM generated new ones.
 
 Note: The bot's env file still includes `DB_*` variables. The bot copies them and does not connect to Postgres.
 
-The VM already running (`feedbridge`, `us-central1-a`) was bootstrapped before the directory rename. Its units still load `/etc/feedbridge/api.env` and `/etc/feedbridge/bot.env`, and that bot env sets `WORKER_COUNT=5`, so the log line is `worker pool size 5`. The unit files in `deploy/` load `/etc/feedbridge/backend.env` and `/etc/feedbridge/telegram-bot.env`. Installing those units on that VM without renaming the env files to match makes systemd look for files that are not there. A new VM should use the names in `deploy/`. The bot binary on the running VM includes `/backup` and `/restore`. The API binary there was not replaced in that deploy.
+The running VM (`feedbridge`, `us-central1-a`) uses the same env file names and unit files as `deploy/`. Its `telegram-bot.env` sets `WORKER_COUNT=5`. Its bot binary includes `/backup` and `/restore`; its API binary predates the `API/` → `backend/` rename.
 
 ```bash
 sudo cp ~/deploy/feedbridge-*.service /etc/systemd/system/
@@ -243,7 +243,7 @@ sudo journalctl -u feedbridge-api -u feedbridge-bot -n 30 --no-pager
 ss -lntp | grep 50051    # must be 127.0.0.1:50051, not 0.0.0.0
 ```
 
-Healthy logs: API `listening on 127.0.0.1:50051`, bot `Bot started` and `worker pool size N`. `N` is `WORKER_COUNT` from the bot env file: 3 in `deploy/env/telegram-bot.env.example`, 10 if the variable is unset, 5 on the VM that is already running.
+Healthy logs: API `listening on 127.0.0.1:50051`, bot `Bot started` and `worker pool size N`. `N` is `WORKER_COUNT` from the bot env file: 3 in `deploy/env/telegram-bot.env.example`, 10 if the variable is unset, 5 on the running VM.
 
 ### 6. Migrate local subscriptions (optional)
 
@@ -277,7 +277,7 @@ Qualify tables as `public.…` after the dump: it sets `search_path` empty. Skip
 - Cut over: stop the laptop bot, then `/listfeed` in Telegram.
 - Server backups: `sudo cp ~/deploy/backup-db.sh /opt/feedbridge/backup-db.sh` and root cron `0 4 * * * /opt/feedbridge/backup-db.sh >> /var/log/feedbridge-backup.log 2>&1` (keeps 7 dumps of `subscriptions` and `link_repositories`). Chat export is separate: `/backup` and `/restore` in Telegram.
 - Redeploy binaries: repeat step 4, then `sudo systemctl restart feedbridge-api feedbridge-bot`.
-- RAM: `free -h`. The example env keeps `WORKER_COUNT=3` on the micro. The running VM's `bot.env` sets `5`. Move to a paid `e2-small` if you sit near 1 GB.
+- RAM: `free -h`. The example env keeps `WORKER_COUNT=3` on the micro. The running VM's `telegram-bot.env` sets `5`. Move to a paid `e2-small` if you sit near 1 GB.
 - Never open `50051`, `5432`, or `6379` on the GCP firewall or UFW.
 
 ## Docker (optional, local/dev only)
