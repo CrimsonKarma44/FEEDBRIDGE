@@ -16,7 +16,7 @@ Run from each module's directory:
 
 ```bash
 go build ./... && go vet ./... && go test ./...   # backend/ and telegram-bot/
-make -C backend proto                            # regenerate backend/protoAPI/ after editing backend/proto/*.proto
+make -C backend proto                            # regenerate backend/protoAPI/ after editing backend/proto/* (needs protoc-gen-go, -go-grpc, -grpc-gateway)
 make -C backend run                              # local API (needs backend/.env, Postgres, Redis)
 cd telegram-bot && go run .                      # local bot (needs telegram-bot/.env)
 ```
@@ -26,7 +26,8 @@ Tests use in-memory SQLite (`backend/internal/testdb`) and bufconn gRPC; they ne
 ## Things that will bite
 
 - Both `go.mod` files `replace` `github.com/CrimsonKarma44/rss_detector` with a local checkout at `/home/deus/Documents/code/project/rss_detector`. The bot also `replace`s the backend module with `../backend` and imports its generated stubs.
-- Generated code in `backend/protoAPI/` is committed. Don't hand-edit it.
+- Generated code in `backend/protoAPI/` is committed. Don't hand-edit it. `make proto` regenerates every file; older stubs then differ only in their `source:` header, so revert those and keep just the files you meant to change.
+- `backend/gateway/` serves the extension's HTTP/JSON API (grpc-gateway over the local gRPC server, routes in `proto/extension_http.yaml`). It starts only when `HTTP_LISTEN_ADDR` is set.
 - Subscriptions are keyed on the resolved feed URL plus `platform` + `external_id`, not on the URL the user typed.
 - Telegram allows one long-poller per bot token. A local `go run` and the VM bot can't run at the same time (`409 Conflict`).
 - Deploy by cross-compiling on the laptop (`make -C <module> build-linux` or `deploy/deploy-*.sh`). Never build on the VM, and never run Docker Compose there (1 GB RAM).

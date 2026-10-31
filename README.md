@@ -36,6 +36,7 @@ Telegram  <-->  telegram-bot/  --gRPC-->  backend/  -->  Postgres + Redis
 | `SetUrlHandler/SetUrl(url)` | Detects feeds for a URL, persists to Postgres, caches in Redis, returns detected feed links |
 | `FeedHandlerService/GetFeed(url, from)` | Returns items published at/after `from` (undated items always included), newest first |
 | `SubscriptionService` | Full subscription lifecycle — see RPCs below |
+| `ExtensionService` | Browser extension: `Detect(url)` (Redis-cached, never written to Postgres), `CreateLinkToken(url)` and `ResolveLinkToken(token, consume)` for single-use, 15-minute Telegram deep-link tokens |
 
 #### SubscriptionService RPCs
 
@@ -49,6 +50,18 @@ Telegram  <-->  telegram-bot/  --gRPC-->  backend/  -->  Postgres + Redis
 | `List(platform, external_id)` | List all subscriptions for a chat |
 | `ListDue(platform, limit)` | Return enabled subscriptions whose interval has elapsed (scheduler driver) |
 | `AckCursor(id, published_at)` | Advance the `last_seen_published` cursor after successful fetch |
+
+#### HTTP gateway (browser extension)
+
+When `HTTP_LISTEN_ADDR` is set, the API also serves HTTP/JSON through [grpc-gateway](https://github.com/grpc-ecosystem/grpc-gateway). Requests are forwarded to the gRPC handlers above. Routes live in `backend/proto/extension_http.yaml`:
+
+| Route | RPC |
+|---|---|
+| `GET /v1/detect?url=<page>` | `ExtensionService/Detect` |
+| `POST /v1/link-tokens` `{"url": "<feed>"}` | `ExtensionService/CreateLinkToken` |
+| `GET /healthz` | — |
+
+`ResolveLinkToken` has no HTTP route; only the bot calls it over gRPC. `/v1/` routes are limited to 30 requests a minute per client IP (bursts of 10) and 4 KB request bodies. `X-Forwarded-For` is trusted only from loopback (Caddy on the same machine).
 
 ## Setup
 
@@ -71,6 +84,7 @@ cp telegram-bot/.env.example telegram-bot/.env      # fill in TELEGRAM_BOT_TOKEN
 | `DB_HOST` `DB_USER` `DB_PASSWORD` `DB_NAME` `DB_PORT` | API. The bot copies them and does not connect | PostgreSQL connection |
 | `REDIS_ADDR` `REDIS_PASSWORD` `REDIS_DB` `REDIS_PROTOCOL` | API | Redis cache backend |
 | `LISTEN_ADDR` | API | gRPC bind address (default `127.0.0.1:50051`) |
+| `HTTP_LISTEN_ADDR` | API | Optional HTTP/JSON gateway for the browser extension, e.g. `127.0.0.1:8080`. Off when unset |
 | `API_ADDR` | bot | gRPC endpoint of the API (default `localhost:50051`) |
 | `TELEGRAM_BOT_TOKEN` | bot | Bot token from BotFather |
 | `WORKER_COUNT` | bot | Fetch worker pool size (default 10) |
@@ -119,7 +133,7 @@ In groups only **admins** can manage feeds.
 
 ## Development notes
 
-- Generated protobuf code lives in `backend/protoAPI/` (committed). After editing `backend/proto/*.proto`, regenerate with `make -C backend proto`.
+- Generated protobuf code lives in `backend/protoAPI/` (committed). After editing `backend/proto/*.proto` or `extension_http.yaml`, regenerate with `make -C backend proto`. It needs `protoc` plus the `protoc-gen-go`, `protoc-gen-go-grpc` and `protoc-gen-grpc-gateway` plugins (`go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.32.0`).
 - `telegram-bot/go.mod` uses a local `replace` directive pointing at `../backend` — the bot imports the API's generated gRPC stubs and shares the same `rss_detector`.
 - Both modules `replace` `github.com/CrimsonKarma44/rss_detector` with a local checkout. Adjust paths in `go.mod` if your layout differs.
 - `backend/youtube/` resolves any YouTube video/handle/channel URL to its Atom feed (Innertube first, Data API v3 when a key is set).
