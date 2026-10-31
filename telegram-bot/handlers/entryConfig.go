@@ -16,9 +16,10 @@ const privateStartTpl = `<b>Welcome to FEEDBRIDGE, %s!</b>
 Get new posts from any website delivered straight into this chat - RSS, Atom and more, checked automatically.
 
 <b>Quick start</b>
-<code>/addfeed https://example.com</code>
+Send me any link, or <code>/check https://example.com</code>, to see its feeds.
 
 <b>Commands</b>
+/check &lt;url&gt; - find a site's feeds and pick one
 /addfeed &lt;url&gt; - subscribe this chat
 /listfeed - manage your subscriptions
 /interval 30m - delivery frequency
@@ -33,6 +34,7 @@ const groupStartTpl = `<b>Hi %s! I deliver feed updates into this chat.</b>
 
 Anyone can read along, admins manage:
 
+/check &lt;url&gt; - see a site's feeds
 /addfeed &lt;url&gt; - add a feed for everyone here
 /listfeed - see what this group follows
 /interval 30m - adjust frequency

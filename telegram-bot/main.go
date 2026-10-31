@@ -114,6 +114,7 @@ func main() {
 	handle("\fbtn_group", envConf.ConfigBtnGroup)
 	handle("\fbtn_community", envConf.ConfigBtnCommunity)
 
+	handle("/check", feedHandler.Check)
 	handle("/addfeed", feedHandler.AddFeed)
 	handle("/listfeed", feedHandler.ListFeed)
 	handle("/removefeed", feedHandler.RemoveFeed)
@@ -123,6 +124,8 @@ func main() {
 	handle("/backup", feedHandler.Backup)
 	handle("/restore", feedHandler.Restore)
 	handle(tele.OnDocument, feedHandler.OnDocument)
+	// A bare link in a private chat works like /check <link>.
+	handle(tele.OnText, feedHandler.OnText)
 
 	handle("\ffd_view", feedHandler.OnViewBtn)
 	handle("\ffd_on", feedHandler.OnEnableBtn)
@@ -130,6 +133,7 @@ func main() {
 	handle("\ffd_rm", feedHandler.OnRemoveBtn)
 	handle("\flk_add", feedHandler.OnLinkAddBtn)
 	handle("\flk_no", feedHandler.OnLinkCancelBtn)
+	handle("\fck_add", feedHandler.OnCheckAddBtn)
 
 	go func() {
 		log.Println("Bot started")

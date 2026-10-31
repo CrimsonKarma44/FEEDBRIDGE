@@ -161,6 +161,30 @@ func (c *Client) ResolveLinkToken(ctx context.Context, token string, consume boo
 	return resp.GetUrl(), nil
 }
 
+// Detect returns the feeds the API finds for a page URL, best first. It is
+// cached in Redis and never saved to Postgres. NotFound means no feeds.
+func (c *Client) Detect(ctx context.Context, url string) ([]*extpb.DetectedFeed, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	resp, err := c.ext.Detect(ctx, &extpb.DetectRequest{Url: url})
+	if err != nil {
+		return nil, err
+	}
+	return resp.GetFeeds(), nil
+}
+
+// CreateLinkToken stores url under a short single-use token (15 minutes),
+// small enough for Telegram's 64-byte button data.
+func (c *Client) CreateLinkToken(ctx context.Context, url string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	resp, err := c.ext.CreateLinkToken(ctx, &extpb.CreateLinkTokenRequest{Url: url})
+	if err != nil {
+		return "", err
+	}
+	return resp.GetToken(), nil
+}
+
 // IsTokenGone reports whether a link token is expired, used, or malformed.
 func IsTokenGone(err error) bool {
 	code := status.Code(err)
