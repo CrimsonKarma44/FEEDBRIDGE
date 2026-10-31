@@ -275,7 +275,7 @@ Qualify tables as `public.…` after the dump: it sets `search_path` empty. Skip
 ### 7. Ops
 
 - Cut over: stop the laptop bot, then `/listfeed` in Telegram.
-- Server backups: `sudo cp ~/deploy/backup-db.sh /opt/feedbridge/backup-db.sh` and root cron `0 4 * * * /opt/feedbridge/backup-db.sh >> /var/log/feedbridge-backup.log 2>&1` (keeps 7 dumps of `subscriptions` and `link_repositories`). Chat export is separate: `/backup` and `/restore` in Telegram.
+- Server backups: `sudo cp ~/deploy/backup-db.sh /opt/feedbridge/backup-db.sh` and root cron `0 4 * * * /opt/feedbridge/backup-db.sh >> /var/log/feedbridge-backup.log 2>&1` (keeps 7 dumps of `subscriptions` and `link_repositories`, then deletes `link_repositories` rows older than 30 days that no subscription uses). Chat export is separate: `/backup` and `/restore` in Telegram.
 - Redeploy binaries: repeat step 4, then `sudo systemctl restart feedbridge-api feedbridge-bot`.
 - RAM: `free -h`. The example env keeps `WORKER_COUNT=3` on the micro. The running VM's `telegram-bot.env` sets `5`. Move to a paid `e2-small` if you sit near 1 GB.
 - Never open `50051`, `5432`, or `6379` on the GCP firewall or UFW.
