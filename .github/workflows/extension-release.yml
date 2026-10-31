@@ -1,0 +1,85 @@
+# Builds the browser extension and publishes a GitHub release when a tag
+# like extension-v0.2.0 is pushed. The tag must match browser-extension/
+# package.json "version".
+#
+# Optional: add repository secrets AMO_JWT_ISSUER and AMO_JWT_SECRET
+# (addons.mozilla.org → Tools → Manage API Keys) to also attach a
+# Mozilla-signed Firefox .xpi that installs permanently.
+name: Extension release
+
+on:
+  push:
+    tags: ["extension-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: browser-extension
+    env:
+      AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+      AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: browser-extension/package-lock.json
+
+      - name: Check the tag matches package.json
+        run: |
+          tag_version="${GITHUB_REF_NAME#extension-v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version $pkg_version"
+            exit 1
+          fi
+          echo "VERSION=$pkg_version" >> "$GITHUB_ENV"
+
+      - run: npm ci
+
+      - name: Type-check and test
+        run: |
+          npm run check
+          npm test
+
+      - name: Build packages
+        run: |
+          npm run zip
+          npm run zip:firefox
+
+      - name: Sign the Firefox build with Mozilla (optional)
+        if: env.AMO_JWT_ISSUER != '' && env.AMO_JWT_SECRET != ''
+        run: |
+          npx --yes web-ext@10.8.0 sign \
+            --source-dir .output/firefox-mv3 \
+            --artifacts-dir .output/signed \
+            --channel unlisted \
+            --api-key "$AMO_JWT_ISSUER" \
+            --api-secret "$AMO_JWT_SECRET"
+          cp .output/signed/*.xpi ".output/feedbridge-extension-${VERSION}-firefox-signed.xpi"
+
+      - name: Write checksums and notes
+        run: |
+          cd .output
+          shopt -s nullglob
+          sha256sum feedbridge-extension-*.zip feedbridge-extension-*.xpi > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          sed "s/{{VERSION}}/${VERSION}/g" ../RELEASE_NOTES.md > notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd .output
+          shopt -s nullglob
+          gh release create "$GITHUB_REF_NAME" \
+            --title "FeedBridge extension ${VERSION}" \
+            --notes-file notes.md \
+            feedbridge-extension-*.zip feedbridge-extension-*.xpi SHA256SUMS.txt

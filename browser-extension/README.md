@@ -14,6 +14,26 @@ Chrome and Firefox extension (Manifest V3, built with [WXT](https://wxt.dev)). C
 
 Permissions: `activeTab`, `scripting`, `storage`, and host access to `https://feedbridge.duckdns.org/*` only. A custom server set on the options page is requested at runtime.
 
+## Install from a release
+
+Download the latest `feedbridge-extension-<version>-chrome.zip` or `-firefox.zip` from [GitHub Releases](https://github.com/CrimsonKarma44/FEEDBRIDGE/releases). Each release page has install steps.
+
+- **Chrome, Edge, Brave:** unzip it into a folder you'll keep, then `chrome://extensions` → Developer mode → **Load unpacked** → that folder.
+- **Firefox:** `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** → the zip. It goes away when Firefox restarts unless the release includes a signed `.xpi`.
+
+## Release
+
+`.github/workflows/extension-release.yml` builds and publishes a release when a matching tag is pushed:
+
+```bash
+# 1. bump "version" in browser-extension/package.json (e.g. 0.2.0) and commit
+# 2. tag that commit and push the tag
+git tag extension-v0.2.0
+git push origin extension-v0.2.0
+```
+
+The workflow checks that the tag matches `package.json`, runs `npm run check` and `npm test`, builds the Chrome, Firefox and source zips, writes `SHA256SUMS.txt`, and publishes the release with `RELEASE_NOTES.md` (`{{VERSION}}` is filled in). If the repository has the secrets `AMO_JWT_ISSUER` and `AMO_JWT_SECRET`, it also attaches a Mozilla-signed `-firefox-signed.xpi` that installs permanently in Firefox.
+
 ## Develop
 
 ```bash

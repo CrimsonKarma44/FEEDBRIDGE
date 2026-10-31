@@ -133,3 +133,7 @@
 - `telegram-bot/grpcclient/client.go` — `Detect` and `CreateLinkToken`.
 - `telegram-bot/main.go`, `telegram-bot/handlers/entryConfig.go` — register `/check`, `OnText` and the button; `/start` texts mention `/check` and sending a link.
 - `README.md` — `/check` in the bot commands.
+- GitHub release `extension-v0.1.0` (https://github.com/CrimsonKarma44/FEEDBRIDGE/releases/tag/extension-v0.1.0) at `456c27e`: Chrome, Firefox and source zips plus `SHA256SUMS.txt`, with install notes; downloaded back and checksums verified.
+- `.github/workflows/extension-release.yml` — on `extension-v*` tags: check tag vs `package.json`, type-check, test, zip both browsers, optional Mozilla signing when `AMO_JWT_ISSUER`/`AMO_JWT_SECRET` secrets exist, checksums, publish release. Shell steps dry-run locally.
+- `browser-extension/RELEASE_NOTES.md` — release notes template with `{{VERSION}}`.
+- `browser-extension/README.md`, `README.md` — install from Releases and how to cut a release.
