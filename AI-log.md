@@ -114,3 +114,13 @@
 - `telegram-bot/grpcclient/client.go` — `ResolveLinkToken` and `IsTokenGone`.
 - `telegram-bot/main.go` — `/start` goes through `StartWithLink`; register the two buttons.
 - `README.md`, `CLAUDE.md`, `docs/plans/browser-extension.md` — document the deep link and the gateway package; step 3 marked done.
+- `deploy/Caddyfile` — Caddy site for `feedbridge.duckdns.org` proxying to `127.0.0.1:8080`.
+- `deploy/duckdns-update.sh`, `deploy/env/duckdns.env.example` — DuckDNS IP updater; token read from `/etc/feedbridge/duckdns.env` and passed to curl on stdin.
+- `deploy/feedbridge.cron` — `/etc/cron.d/feedbridge`: nightly `backup-db.sh` at 04:00 and the DuckDNS updater every 5 minutes.
+- `deploy/setup-server.sh`, `deploy/gcp/create-vm.sh` — install Caddy, UFW 80/443, the scripts and cron; `feedbridge-web` GCP rule for tcp:80,443.
+- `README.md` — "HTTPS for the browser extension" deploy section; backups now installed by `setup-server.sh`.
+- VM `feedbridge`: deployed new API and bot binaries (checksums verified, old ones kept as `*.prev`), added `HTTP_LISTEN_ADDR=127.0.0.1:8080` to `backend.env`, installed Caddy 2.6.2 with `deploy/Caddyfile`, installed `backup-db.sh`, `duckdns-update.sh` and `/etc/cron.d/feedbridge`. Backups had never been scheduled before. First run wrote `/var/backups/feedbridge/feedbridge_2026-10-31_1238.sql.gz` and deleted 71 of 170 `link_repositories` rows.
+- VM `feedbridge` and GCP: created firewall rule `feedbridge-web` (tcp:80,443 to tag `feedbridge`), UFW allow 80/443, DuckDNS token in `/etc/feedbridge/duckdns.env` (600) and first update OK. Caddy got a Let's Encrypt certificate for `feedbridge.duckdns.org`. Checked from outside: `/healthz`, `/v1/detect` (YouTube, go.dev), `/v1/link-tokens`, 400 on bad URL, 404 for token lookup, 429 after the burst; 8080, 50051, 5432, 6379 closed.
+- `deploy/Caddyfile` — `acme_ca` set to Let's Encrypt; Ubuntu's Caddy 2.6.2 ZeroSSL fallback fails with `caddy_legacy_user_removed`.
+- `backend/handlers/detect.go` — YouTube results carry `source` `platform:youtube`; redeployed the API.
+- `docs/plans/browser-extension.md` — step 4 marked done.
