@@ -82,4 +82,11 @@
 ## 2026-10-31 10:43
 <!-- id: 566d8d40-8283-415e-a89c-c8c78a7c02b4 -->
 - `.claude/skills/ai-log/SKILL.md` — `/ai-log` skill that appends or updates this session's entry in `AI-log.md`, following the format of past entries; writes an entry only when the session changed project files.
-- Verified both modules build (`go build ./...`) and all tests pass (`go test ./...`).
+- `backend/feedbridge-linux-amd64`, `telegram-bot/feedbridge-bot-linux-amd64` — untracked (gitignored; deploy scripts rebuild them). Files kept on disk.
+- `telegram-bot/store/store.go` — removed (unused since subscriptions moved to gRPC); `go mod tidy` dropped gorm and the Postgres driver from `telegram-bot/go.mod`.
+- `backend/main.go` — removed the commented-out rssdetector demo and the hardcoded `Server running on :50051` log line.
+- `README.md` — drop mentions of the deleted bot store.
+- `backend/config/env.go`, `telegram-bot/model/ENV.go`, `deploy/setup-server.sh` — `api.env`/`bot.env` → `backend.env`/`telegram-bot.env`.
+- `CLAUDE.md` — layout, commands, deploy cautions, and the AI-log rule.
+- Commits `6cc7d42`, `604a590`, `07c3509`, `23c1609`.
+- Verified both modules build, vet, and pass tests (`go build ./... && go vet ./... && go test ./...`).
