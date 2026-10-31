@@ -77,7 +77,7 @@ cp telegram-bot/.env.example telegram-bot/.env      # fill in TELEGRAM_BOT_TOKEN
 | `YOUTUBE_API_KEY` | API | Optional; prefers Data API v3 in the YouTube resolver |
 | `FEEDBRIDGE_ALLOW_PRIVATE_FETCH` | API | Set to `1` to allow fetching LAN/loopback feed URLs (off by default) |
 
-> The bot's local `telegram-bot/store/store.go` is **unused** — all subscription state lives in the API's Postgres. Startup still copies `DB_*` into `model.ENV`. Nothing in the bot opens a database connection.
+> The bot never opens a database connection — all subscription state lives in the API's Postgres. Startup still copies `DB_*` into `model.ENV`.
 
 > Note: `.env` files are gitignored — never commit them.
 
@@ -126,7 +126,7 @@ In groups only **admins** can manage feeds.
 - Cache layers: repeat `GetFeed` calls within the item TTL are served entirely from Redis.
 - Subscriptions are keyed on the **resolved feed URL** (not the input URL): adding any page of a site whose feed you already follow answers "already subscribed" instead of creating a duplicate.
 - The 30s scheduler and worker pool run in the bot (`telegram-bot/main.go`). Each tick calls the API's `ListDue`, fetches due feeds, dedupes, delivers, then `AckCursor`. The API stores the rows and does not start that loop.
-- `telegram-bot/store/store.go` is **legacy** and not imported. The bot copies `DB_*` into `model.ENV` and never connects; subscription CRUD goes through gRPC.
+- The bot copies `DB_*` into `model.ENV` and never connects; subscription CRUD goes through gRPC.
 
 ## Deployment (Google Cloud Always Free — e2-micro, $0)
 
