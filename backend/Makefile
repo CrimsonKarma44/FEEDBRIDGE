@@ -10,9 +10,14 @@ proto :
 		--proto_path=proto \
 		--proto_path=/usr/include \
 		proto/subscription.proto proto/feed.proto proto/setUrl.proto proto/extension.proto
+	# Gateway goes in its own package (standalone) so importers of the gRPC
+	# stubs, like the bot, don't pull in grpc-gateway.
+	mkdir -p protoAPI/extensiongw
 	PATH="$(PATH):$(shell go env GOPATH)/bin" protoc \
-		--grpc-gateway_out=protoAPI \
+		--grpc-gateway_out=protoAPI/extensiongw \
 		--grpc-gateway_opt=grpc_api_configuration=proto/extension_http.yaml \
+		--grpc-gateway_opt=standalone=true,paths=source_relative \
+		--grpc-gateway_opt=Mextension.proto=github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/extension \
 		--proto_path=proto \
 		--proto_path=/usr/include \
 		proto/extension.proto

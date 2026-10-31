@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	extpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/extension"
+	extgw "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/extensiongw"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
@@ -43,7 +43,7 @@ func DefaultConfig() Config {
 func New(ctx context.Context, grpcTarget string, cfg Config, dialOpts ...grpc.DialOption) (http.Handler, error) {
 	gw := runtime.NewServeMux()
 	opts := append([]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}, dialOpts...)
-	if err := extpb.RegisterExtensionServiceHandlerFromEndpoint(ctx, gw, grpcTarget, opts); err != nil {
+	if err := extgw.RegisterExtensionServiceHandlerFromEndpoint(ctx, gw, grpcTarget, opts); err != nil {
 		return nil, err
 	}
 
