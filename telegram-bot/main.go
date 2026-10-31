@@ -107,7 +107,8 @@ func main() {
 		bot.Handle(endpoint, safe(h))
 	}
 
-	handle("/start", envConf.Start)
+	// /start add_<token> comes from the browser extension's subscribe link.
+	handle("/start", feedHandler.StartWithLink(envConf.Start))
 	handle("/configure", envConf.Configure)
 	handle("\fbtn_chat", envConf.ConfigBtnChat)
 	handle("\fbtn_group", envConf.ConfigBtnGroup)
@@ -127,6 +128,8 @@ func main() {
 	handle("\ffd_on", feedHandler.OnEnableBtn)
 	handle("\ffd_off", feedHandler.OnDisableBtn)
 	handle("\ffd_rm", feedHandler.OnRemoveBtn)
+	handle("\flk_add", feedHandler.OnLinkAddBtn)
+	handle("\flk_no", feedHandler.OnLinkCancelBtn)
 
 	go func() {
 		log.Println("Bot started")

@@ -59,7 +59,13 @@ func (h *FeedHandler) AddFeed(c tele.Context) error {
 	if err != nil {
 		return c.Send(BadURLHelp(err))
 	}
+	return h.subscribeURL(c, target)
+}
 
+// subscribeURL subscribes the current chat to target (already normalized),
+// confirms in the chat, and posts the latest items. Shared by /addfeed and the
+// browser-extension deep link. Callers handle the admin check.
+func (h *FeedHandler) subscribeURL(c tele.Context, target string) error {
 	platform, ext := telegramDest(c.Chat().ID)
 	res, err := h.API.Subscribe(context.Background(), platform, ext, target)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	feedpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/Feed"
+	extpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/extension"
 	urlpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/setUrl"
 	subpb "github.com/CrimsonKarma44/FEEDBRIDGE/backend/protoAPI/subscription"
 	"google.golang.org/grpc"
@@ -22,6 +23,7 @@ type Client struct {
 	feed   feedpb.FeedHandlerServiceClient
 	setURL urlpb.SetUrlHandlerClient
 	sub    subpb.SubscriptionServiceClient
+	ext    extpb.ExtensionServiceClient
 }
 
 func New(addr string) (*Client, error) {
@@ -34,6 +36,7 @@ func New(addr string) (*Client, error) {
 		feed:   feedpb.NewFeedHandlerServiceClient(conn),
 		setURL: urlpb.NewSetUrlHandlerClient(conn),
 		sub:    subpb.NewSubscriptionServiceClient(conn),
+		ext:    extpb.NewExtensionServiceClient(conn),
 	}, nil
 }
 
@@ -144,6 +147,24 @@ func (c *Client) GetSubscription(ctx context.Context, id uint64) (*subpb.Subscri
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	return c.sub.Get(ctx, &subpb.SubscriptionID{Id: id})
+}
+
+// ResolveLinkToken returns the feed URL behind a browser-extension deep-link
+// token. consume=true uses the token up so it can subscribe only once.
+func (c *Client) ResolveLinkToken(ctx context.Context, token string, consume bool) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	resp, err := c.ext.ResolveLinkToken(ctx, &extpb.ResolveLinkTokenRequest{Token: token, Consume: consume})
+	if err != nil {
+		return "", err
+	}
+	return resp.GetUrl(), nil
+}
+
+// IsTokenGone reports whether a link token is expired, used, or malformed.
+func IsTokenGone(err error) bool {
+	code := status.Code(err)
+	return code == codes.NotFound || code == codes.InvalidArgument
 }
 
 func IsNotFound(err error) bool {
