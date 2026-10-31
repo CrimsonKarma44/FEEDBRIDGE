@@ -2,7 +2,7 @@
 
 Intelligent RSS-to-Chat Delivery Platform
 
-FEEDBRIDGE detects syndication feeds (RSS / Atom / JSON Feed) for any site URL, caches them, and delivers new posts as Telegram messages to private chats, groups, and communities on a schedule.
+FEEDBRIDGE detects syndication feeds (RSS / Atom / JSON Feed) for any site URL, caches them, and delivers new posts as Telegram messages to private chats, groups, and communities on a schedule. A Chrome and Firefox extension finds the feeds on the page you're viewing and subscribes in a couple of taps.
 
 Product drafts and artwork are under `docs/`:
 
@@ -11,22 +11,29 @@ Product drafts and artwork are under `docs/`:
 | `docs/prd/` | PRD v1.0 drafts dated 2026-07-13 and 2026-07-17 |
 | `docs/proposals/` | AI product and technical proposal, plus v1.1 |
 | `docs/images/` | Logo, launch graphic, and an RSS/Atom element map |
+| `docs/plans/` | Browser extension plan and its delivery status |
 
 ## Architecture
 
 ```
 Telegram  <-->  telegram-bot/  --gRPC-->  backend/  -->  Postgres + Redis
-                           |
-                   scheduler (30s tick)
-                           |
-                    worker pool (WORKER_COUNT)
-                           |
-                    dedupe → delivery
+                     |                     ^
+             scheduler (30s tick)          | gRPC (loopback)
+                     |                     |
+          worker pool (WORKER_COUNT)   HTTP gateway 127.0.0.1:8080
+                     |                     ^
+              dedupe → delivery            | HTTPS
+                                     Caddy :443 (feedbridge.duckdns.org)
+                                           ^
+                                           | on toolbar click only
+                                   browser-extension/
 ```
+
+The extension's Subscribe button opens `t.me/<bot>?start=add_<token>`; the bot resolves the token over gRPC and asks the chat to confirm.
 
 | Component | What it does |
 |---|---|
-| `backend/` | Go gRPC server on `LISTEN_ADDR` (default `127.0.0.1:50051`). Feed detection via [rss_detector](https://github.com/CrimsonKarma44/rss_detector), link registry + subscriptions in Postgres (GORM), Redis caching with TTLs (feed items 10 min, feed links 24 h, negative results 5 min), singleflight coalescing of identical requests, panic-recovery + logging interceptors, gRPC health checks & reflection. Exposes `ListDue` and `AckCursor` for the bot's scheduler. It does not start that loop. |
+| `backend/` | Go gRPC server on `LISTEN_ADDR` (default `127.0.0.1:50051`). Feed detection via [rss_detector](https://github.com/CrimsonKarma44/rss_detector), link registry + subscriptions in Postgres (GORM), Redis caching with TTLs (feed items 10 min, feed links 24 h, negative results 5 min), singleflight coalescing of identical requests, panic-recovery + logging interceptors, gRPC health checks & reflection. Exposes `ListDue` and `AckCursor` for the bot's scheduler. It does not start that loop. With `HTTP_LISTEN_ADDR` set it also serves an HTTP/JSON gateway for the browser extension (`backend/gateway/`). |
 | `browser-extension/` | Chrome and Firefox extension (WXT, Manifest V3). Click the toolbar icon to list a page's feeds, copy or open them, or subscribe through the bot with a single-use link. Calls the API's HTTP gateway only on click. See `browser-extension/README.md`. |
 | `telegram-bot/` | Telebot v4 client. No direct database access — subscription operations go through gRPC. Runs the scheduler (30s tick): `ListDue` → worker pool → fetch → dedupe → deliver → `AckCursor`. Per-chat commands, admin-only management inside groups, delivery formatting (individual messages for ≤5 items, digest for larger batches). Worker pool size is `WORKER_COUNT` (default 10 when unset; `deploy/env/telegram-bot.env.example` sets 3 for the 1 GB e2-micro). |
 
@@ -72,6 +79,7 @@ When `HTTP_LISTEN_ADDR` is set, the API also serves HTTP/JSON through [grpc-gate
 - PostgreSQL
 - Redis
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
+- Node.js 22+ (only for building the browser extension)
 
 ### 1. Configure
 
@@ -118,6 +126,7 @@ go run .
 |---|---|
 | `/start` | Greet (adapts to private chat vs group/community) |
 | `/configure` | Delivery target picker (this chat / group / community deep-links) |
+| `/check <url>` | Check a link: validate it, list the feeds found with their titles and types, and offer a Subscribe button for each (buttons work for 15 minutes). In a private chat, sending a bare link does the same |
 | `/addfeed <url>` | Detect feeds for a URL and subscribe this chat |
 | `/listfeed` | Inline list with Enable / Disable / Remove buttons per subscription |
 | `/removefeed <url>` | Unsubscribe by URL |
@@ -125,6 +134,8 @@ go run .
 | `/interval <duration>` | Refresh cadence for all feeds in this chat (`15m`, `1h`, ... clamped to 5 m - 24 h) |
 | `/backup` | Send this chat's feeds as `feedbridge-backup.json` |
 | `/restore` | Apply a backup file to this chat: subscribe to feeds it does not already follow, and match each feed's enabled flag |
+
+`/check` uses the API's `Detect` (Redis-cached, nothing saved to Postgres). Each Subscribe button carries a single-use link token, because a feed URL doesn't fit in Telegram's 64-byte button data; in groups only admins can press them. Plain links are only picked up in private chats; in groups use `/check`.
 
 Subscribe links from the browser extension open the bot with `/start add_<token>`. The bot shows the feed URL with **Subscribe** and **Cancel** buttons; in groups only admins can press them. Tokens expire after 15 minutes and work once.
 
@@ -147,7 +158,7 @@ In groups only **admins** can manage feeds.
 
 ## Deployment (Google Cloud Always Free — e2-micro, $0)
 
-One **amd64** VM: native Postgres + Redis, API and bot as systemd services. Nothing is public except SSH. The bot talks to Telegram outbound; the API listens on `127.0.0.1:50051` only.
+One **amd64** VM: native Postgres + Redis, API and bot as systemd services, Caddy in front of the extension API. Only SSH (22) and HTTPS (80/443, Caddy) are public. The bot talks to Telegram outbound; gRPC (`127.0.0.1:50051`) and the HTTP gateway (`127.0.0.1:8080`) listen on loopback only.
 
 Do **not** run Docker Compose on this machine (1 GB RAM). Do **not** compile on the VM (`rss_detector` is a local `replace` on your laptop). Cross-compile `linux/amd64` at home and copy the binaries.
 
@@ -161,7 +172,7 @@ Always Free `e2-micro` is **one instance**, only in `us-central1`, `us-west1`, o
 gcloud auth login
 gcloud config set project YOUR_PROJECT_ID
 gcloud services enable compute.googleapis.com
-./deploy/gcp/create-vm.sh          # us-central1-a, Ubuntu 24.04 amd64, SSH-only firewall
+./deploy/gcp/create-vm.sh          # us-central1-a, Ubuntu 24.04 amd64; firewall rules feedbridge-ssh (22) and feedbridge-web (80, 443)
 ```
 
 Console equivalent: Compute Engine → Create instance — name `feedbridge`, zone `us-central1-a`, machine **e2-micro**, Ubuntu 24.04 LTS **amd64**, 20–30 GB standard disk, **HTTP/HTTPS off**.
@@ -192,7 +203,7 @@ cd ~/deploy
 sudo ./setup-server.sh
 ```
 
-The script is idempotent. It installs Postgres + Redis, creates system user `feedbridge`, applies 1 GB memory limits, enables UFW (SSH only), and prints `REDIS_PASSWORD`. UFW will ask whether to proceed; the script answers yes.
+The script is idempotent. It installs Postgres, Redis and Caddy, creates system user `feedbridge`, applies 1 GB memory limits, enables UFW (SSH, 80, 443), installs `deploy/Caddyfile`, the backup and DuckDNS scripts and `/etc/cron.d/feedbridge`, and prints `REDIS_PASSWORD`. UFW will ask whether to proceed; the script answers yes.
 
 If the password banner scrolled past, recover it with:
 
@@ -211,8 +222,9 @@ sudoedit /etc/feedbridge/backend.env /etc/feedbridge/telegram-bot.env
 
 | File | Set these | Leave as in the example |
 |---|---|---|
-| `/etc/feedbridge/backend.env` | `DB_PASSWORD` (the Postgres password you typed), `REDIS_PASSWORD` (from `requirepass`), optional `YOUTUBE_API_KEY` | `LISTEN_ADDR=127.0.0.1:50051`, loopback hosts |
+| `/etc/feedbridge/backend.env` | `DB_PASSWORD` (the Postgres password you typed), `REDIS_PASSWORD` (from `requirepass`), optional `YOUTUBE_API_KEY` | `LISTEN_ADDR=127.0.0.1:50051`, `HTTP_LISTEN_ADDR=127.0.0.1:8080`, loopback hosts |
 | `/etc/feedbridge/telegram-bot.env` | `TELEGRAM_BOT_TOKEN`, same `DB_PASSWORD` | `API_ADDR=127.0.0.1:50051`, `WORKER_COUNT=3` |
+| `/etc/feedbridge/duckdns.env` (created by `setup-server.sh`) | `DUCKDNS_TOKEN` | `DUCKDNS_DOMAIN=feedbridge` |
 
 Do **not** reuse the laptop Redis/Postgres passwords; the VM generated new ones.
 
